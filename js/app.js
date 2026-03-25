@@ -143,6 +143,10 @@
     let navElevationData = null;
     let windOverlay = null;
 
+    // Multi-route state
+    let allRoutes = []; // array of { routeData, routeCoords, speedData, elevationData, label, highSpeedPct }
+    let selectedRouteIdx = 0;
+
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
     const apiKeyInput = $('#api-key-input');
@@ -549,6 +553,8 @@
         speedMarkers.forEach(m => map.removeLayer(m));
         speedMarkers = [];
         if (windOverlay) { map.removeControl(windOverlay); windOverlay = null; }
+        allRoutes = [];
+        selectedRouteIdx = 0;
     }
 
     // ===== Main Route Finding =====
@@ -570,72 +576,96 @@
             return;
         }
 
-        showLoading('Calculating EUC-friendly route...');
+        showLoading('Calculating EUC-friendly routes...');
         clearRoute();
+        allRoutes = [];
+        selectedRouteIdx = 0;
+
         // Reset feature panels for fresh results
         if ($('#weather-info')) $('#weather-info').classList.add('hidden');
         if ($('#elevation-profile')) $('#elevation-profile').classList.add('hidden');
         if ($('#range-estimate')) $('#range-estimate').classList.add('hidden');
+        const routeTabs = $('#route-tabs');
+        if (routeTabs) { routeTabs.innerHTML = ''; routeTabs.classList.add('hidden'); }
 
         try {
-            // Step 1: Get route from ORS
-            const routeData = await fetchRoute();
-            if (!routeData) {
+            // Step 1: Get routes from ORS (may return 1-3 alternatives)
+            const routes = await fetchRoute();
+            if (!routes || routes.length === 0) {
                 hideLoading();
                 alert('Could not find a route. Please try different locations.');
                 return;
             }
 
-            setLoadingText('Fetching speed limit data...');
+            setLoadingText('Fetching speed limits for all routes...');
 
-            // Step 2: Decode the route geometry
-            const routeCoords = decodePolyline(routeData.geometry);
-            const steps = routeData.segments[0].steps;
+            // Step 2: Decode and fetch speed limits for each route
+            const routePromises = routes.map(async (rd) => {
+                const coords = decodePolyline(rd.geometry);
+                const speeds = await fetchSpeedLimits(coords);
+                return { routeData: rd, routeCoords: coords, speedData: speeds };
+            });
+            const processedRoutes = await Promise.all(routePromises);
 
-            // Step 3: Fetch speed limits from Overpass API
-            const speedData = await fetchSpeedLimits(routeCoords);
+            // Step 3: Calculate high-speed percentage for each route
+            processedRoutes.forEach((r) => {
+                const speeds = r.speedData.filter(s => s.mph != null).map(s => s.mph);
+                const highSpeedCount = speeds.filter(s => s >= 40).length;
+                r.highSpeedPct = speeds.length > 0 ? Math.round((highSpeedCount / speeds.length) * 100) : 0;
+            });
+
+            // Step 4: Sort — first route stays as fastest, rest sorted by lowest high-speed %
+            if (processedRoutes.length > 1) {
+                const fastest = processedRoutes[0];
+                const alternatives = processedRoutes.slice(1).sort((a, b) => a.highSpeedPct - b.highSpeedPct);
+                allRoutes = [fastest, ...alternatives];
+            } else {
+                allRoutes = processedRoutes;
+            }
+
+            // Label routes
+            allRoutes[0].label = 'Fastest';
+            for (let i = 1; i < allRoutes.length; i++) {
+                allRoutes[i].label = 'Low Traffic ' + i;
+            }
 
             setLoadingText('Fetching elevation & weather...');
+
+            // Step 5: Fetch elevation & weather for first route (selected by default)
+            const firstRoute = allRoutes[0];
             const [elevationData] = await Promise.all([
-                fetchElevationData(routeCoords),
-                fetchWeather(routeCoords)
+                fetchElevationData(firstRoute.routeCoords),
+                fetchWeather(firstRoute.routeCoords)
             ]);
+            firstRoute.elevationData = elevationData;
 
-            setLoadingText('Drawing route with speed limits...');
+            setLoadingText('Drawing routes...');
 
-            // Step 4: Draw the route with speed-colored segments
-            drawColoredRoute(routeCoords, speedData);
+            // Step 6: Draw all routes on map, highlight selected
+            drawAllRoutes();
 
-            // Step 5: Place speed limit signs at key points
-            placeSpeedSigns(routeCoords, speedData);
+            // Step 7: Build route tabs if multiple routes
+            if (allRoutes.length > 1) {
+                buildRouteTabs();
+            }
 
-            // Step 6: Show route info
-            showRouteInfo(routeData, speedData, steps);
+            // Step 8: Show info for selected route
+            const sel = allRoutes[selectedRouteIdx];
+            showRouteInfo(sel.routeData, sel.speedData, sel.routeData.segments[0].steps);
+            drawElevationProfile(sel.routeCoords, sel.elevationData);
+            updateRangeEstimate(sel.routeData, sel.elevationData);
 
-            // Elevation profile and range estimate
-            drawElevationProfile(routeCoords, elevationData);
-            updateRangeEstimate(routeData, elevationData);
-
-            // Fit map to route
-            const bounds = L.latLngBounds(routeCoords);
+            // Fit map to all routes
+            const allCoords = allRoutes.flatMap(r => r.routeCoords);
+            const bounds = L.latLngBounds(allCoords);
             map.fitBounds(bounds, { padding: [80, 80] });
 
-            // Step 7: Save route to history
-            saveRouteToHistory(
-                startInput.value,
-                endInput.value,
-                startCoords,
-                endCoords
-            );
+            // Save to history
+            saveRouteToHistory(startInput.value, endInput.value, startCoords, endCoords);
 
-            // Store data for navigation mode
-            navRouteCoords = routeCoords;
-            navSteps = steps;
-            navSpeedData = speedData;
-            navTotalDistanceMi = routeData.segments[0].distance;
-            navElevationData = elevationData;
+            // Store data for navigation (selected route)
+            setNavDataFromRoute(sel);
 
-            // Show Start Navigation button
             const navBtn = $('#start-nav-btn');
             if (navBtn) navBtn.classList.remove('hidden');
 
@@ -647,6 +677,103 @@
             console.error('Route error:', err);
             alert('Error finding route: ' + err.message);
         }
+    }
+
+    function setNavDataFromRoute(routeObj) {
+        navRouteCoords = routeObj.routeCoords;
+        navSteps = routeObj.routeData.segments[0].steps;
+        navSpeedData = routeObj.speedData;
+        navTotalDistanceMi = routeObj.routeData.segments[0].distance;
+        navElevationData = routeObj.elevationData || null;
+    }
+
+    // Draw all routes: non-selected as faded, selected with full speed colors
+    function drawAllRoutes() {
+        // Clear existing route layers
+        routeLayers.forEach(layer => map.removeLayer(layer));
+        routeLayers = [];
+        speedMarkers.forEach(m => map.removeLayer(m));
+        speedMarkers = [];
+
+        // Draw non-selected routes first (behind)
+        allRoutes.forEach((r, idx) => {
+            if (idx === selectedRouteIdx) return;
+            const line = L.polyline(r.routeCoords, {
+                color: '#5a7aa5',
+                weight: 5,
+                opacity: 0.35,
+                dashArray: '8, 8',
+                interactive: true
+            }).addTo(map);
+
+            const distMi = r.routeData.segments[0].distance.toFixed(1);
+            const eucTimeMin = Math.round((r.routeData.segments[0].distance / EUC_AVG_SPEED_MPH) * 60);
+            line.bindTooltip(r.label + ' — ' + distMi + ' mi, ~' + eucTimeMin + ' min, ' + r.highSpeedPct + '% fast roads', { sticky: true });
+            line.on('click', function () { selectRoute(idx); });
+            routeLayers.push(line);
+        });
+
+        // Draw selected route on top with full speed colors
+        const sel = allRoutes[selectedRouteIdx];
+        drawColoredRoute(sel.routeCoords, sel.speedData);
+        placeSpeedSigns(sel.routeCoords, sel.speedData);
+    }
+
+    function buildRouteTabs() {
+        const container = $('#route-tabs');
+        if (!container) return;
+        container.innerHTML = '';
+        container.classList.remove('hidden');
+
+        allRoutes.forEach((r, idx) => {
+            const tab = document.createElement('button');
+            tab.className = 'route-tab' + (idx === selectedRouteIdx ? ' active' : '');
+
+            const distMi = r.routeData.segments[0].distance.toFixed(1);
+            const eucTimeMin = Math.round((r.routeData.segments[0].distance / EUC_AVG_SPEED_MPH) * 60);
+            const badgeClass = idx === 0 ? 'badge-fast' : 'badge-safe';
+            const badgeText = idx === 0 ? 'Fastest' : (r.highSpeedPct + '% fast roads');
+
+            tab.innerHTML =
+                '<span class="tab-label">' + r.label + '</span>' +
+                '<span class="tab-detail">' + distMi + ' mi · ~' + eucTimeMin + ' min</span>' +
+                '<span class="tab-badge ' + badgeClass + '">' + badgeText + '</span>';
+
+            tab.addEventListener('click', function () { selectRoute(idx); });
+            container.appendChild(tab);
+        });
+    }
+
+    async function selectRoute(idx) {
+        if (idx === selectedRouteIdx) return;
+        selectedRouteIdx = idx;
+
+        const sel = allRoutes[selectedRouteIdx];
+
+        // Fetch elevation data if not yet loaded for this route
+        if (!sel.elevationData) {
+            showLoading('Loading route details...');
+            sel.elevationData = await fetchElevationData(sel.routeCoords);
+            hideLoading();
+        }
+
+        // Redraw all routes with new selection
+        drawAllRoutes();
+
+        // Update tabs
+        const tabs = document.querySelectorAll('.route-tab');
+        tabs.forEach((t, i) => t.classList.toggle('active', i === idx));
+
+        // Update info panels
+        showRouteInfo(sel.routeData, sel.speedData, sel.routeData.segments[0].steps);
+        drawElevationProfile(sel.routeCoords, sel.elevationData);
+        updateRangeEstimate(sel.routeData, sel.elevationData);
+
+        // Re-fetch weather for new route midpoint
+        await fetchWeather(sel.routeCoords);
+
+        // Update nav data
+        setNavDataFromRoute(sel);
     }
 
     // ===== Fetch Route from OpenRouteService =====
@@ -664,6 +791,11 @@
             language: 'en',
             instructions: true,
             geometry: true,
+            alternative_routes: {
+                target_count: 3,
+                share_factor: 0.6,
+                weight_factor: 1.4
+            },
             options: {
                 avoid_features: ['ferries', 'steps']
             }
@@ -691,14 +823,15 @@
             if (resp.ok) {
                 rateLimiter.record('directions');
                 const data = await resp.json();
-                if (data.routes && data.routes.length > 0) return data.routes[0];
+                if (data.routes && data.routes.length > 0) return data.routes;
             } else {
                 lastError = await resp.text();
                 console.warn(`ORS ${profile} failed:`, lastError);
 
-                // If the avoid features caused the error, retry without them
+                // If the avoid features or alternative_routes caused the error, retry without them
                 if (resp.status === 400) {
                     delete body.options;
+                    delete body.alternative_routes;
                     const retryResp = await fetch(`${ORS_BASE}/v2/directions/${profile}`, {
                         method: 'POST',
                         headers: {
@@ -711,7 +844,7 @@
                     if (retryResp.ok) {
                         rateLimiter.record('directions');
                         const retryData = await retryResp.json();
-                        if (retryData.routes && retryData.routes.length > 0) return retryData.routes[0];
+                        if (retryData.routes && retryData.routes.length > 0) return retryData.routes;
                     } else {
                         lastError = await retryResp.text();
                         console.warn(`ORS ${profile} retry failed:`, lastError);
@@ -1425,7 +1558,7 @@
 
         var arrowRotation = (direction + 180) % 360;
 
-        windOverlay = L.control({ position: 'topright' });
+        windOverlay = L.control({ position: 'bottomright' });
         windOverlay.onAdd = function () {
             var div = L.DomUtil.create('div', 'wind-overlay');
             div.innerHTML =

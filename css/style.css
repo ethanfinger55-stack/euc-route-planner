@@ -275,6 +275,77 @@ input[type="checkbox"] {
     height: 16px;
 }
 
+/* ===== Route Tabs ===== */
+.route-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.route-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.route-tab:hover {
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+}
+
+.route-tab.active {
+    border-color: var(--accent-blue);
+    background: rgba(74, 144, 217, 0.15);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.route-tab .tab-label {
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.route-tab .tab-detail {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.route-tab.active .tab-detail {
+    color: var(--text-secondary);
+}
+
+.route-tab .tab-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-top: 2px;
+    font-weight: 600;
+}
+
+.tab-badge.badge-fast {
+    background: var(--accent-blue);
+    color: #fff;
+}
+
+.tab-badge.badge-safe {
+    background: var(--accent-green);
+    color: #fff;
+}
+
 /* ===== Route Info ===== */
 .route-info {
     animation: slideIn 0.3s ease;
