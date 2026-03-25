@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EUC Route Planner</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-route"></i>
+                    <h1>EUC Route Planner</h1>
+                </div>
+                <p class="tagline">Find the safest roads for your electric unicycle</p>
+            </div>
+
+            <!-- API Key Section -->
+            <div id="api-key-section" class="sidebar-section">
+                <label for="api-key-input">
+                    <i class="fas fa-key"></i> OpenRouteService API Key
+                </label>
+                <div class="input-group">
+                    <input type="password" id="api-key-input" placeholder="Paste your API key here" />
+                    <button id="save-api-key" class="btn btn-sm" title="Save key">
+                        <i class="fas fa-save"></i>
+                    </button>
+                </div>
+                <small>
+                    Free key at <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener noreferrer">openrouteservice.org</a>
+                </small>
+                <div id="api-usage" class="api-usage hidden">
+                    <h4><i class="fas fa-chart-bar"></i> API Usage Today</h4>
+                    <div class="usage-row"><span>Directions</span><span id="usage-directions">0 / 2000</span></div>
+                    <div class="usage-row"><span>Autocomplete</span><span id="usage-autocomplete">0 / 1000</span></div>
+                    <div class="usage-row"><span>Reverse Geocode</span><span id="usage-reverse">0 / 1000</span></div>
+                    <div class="usage-row"><span>Search</span><span id="usage-search">0 / 1000</span></div>
+                    <small class="usage-reset-note">Resets daily. Stored locally.</small>
+                </div>
+            </div>
+
+            <!-- Route Input Section -->
+            <div class="sidebar-section">
+                <label for="start-input">
+                    <i class="fas fa-map-marker-alt" style="color: var(--accent-green);"></i> Start Location
+                </label>
+                <div class="input-group">
+                    <input type="text" id="start-input" placeholder="Enter start address or use current location" autocomplete="off" />
+                    <button id="use-location-btn" class="btn btn-sm" title="Use my current location">
+                        <i class="fas fa-crosshairs"></i>
+                    </button>
+                </div>
+
+                <label for="end-input" style="margin-top: 12px;">
+                    <i class="fas fa-flag-checkered" style="color: var(--accent-red);"></i> Destination
+                </label>
+                <div class="input-group">
+                    <input type="text" id="end-input" placeholder="Enter destination address" autocomplete="off" />
+                    <button id="clear-end-btn" class="btn btn-sm" title="Clear destination">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Geocode suggestions dropdown -->
+                <div id="suggestions-dropdown" class="suggestions-dropdown hidden"></div>
+            </div>
+
+            <!-- Route Preferences -->
+            <div class="sidebar-section">
+                <h3><i class="fas fa-sliders-h"></i> Route Preferences</h3>
+                <div class="preference-item">
+                    <label for="max-speed-pref">Max preferred speed limit</label>
+                    <select id="max-speed-pref">
+                        <option value="25">25 mph (40 km/h)</option>
+                        <option value="30">30 mph (48 km/h)</option>
+                        <option value="35" selected>35 mph (56 km/h)</option>
+                        <option value="45">45 mph (72 km/h)</option>
+                        <option value="100">No limit</option>
+                    </select>
+                </div>
+                <div class="preference-item">
+                    <label for="avoid-highways">
+                        <input type="checkbox" id="avoid-highways" checked />
+                        Avoid highways &amp; motorways
+                    </label>
+                </div>
+                <div class="preference-item">
+                    <label for="avoid-toll">
+                        <input type="checkbox" id="avoid-toll" checked />
+                        Avoid toll roads
+                    </label>
+                </div>
+                <div class="preference-item">
+                    <label for="prefer-residential">
+                        <input type="checkbox" id="prefer-residential" checked />
+                        Prefer residential &amp; low-traffic roads
+                    </label>
+                </div>
+            </div>
+
+            <!-- Find Route Button -->
+            <div class="sidebar-section">
+                <button id="find-route-btn" class="btn btn-primary btn-full">
+                    <i class="fas fa-search-location"></i> Find EUC-Friendly Route
+                </button>
+            </div>
+
+            <!-- Route Info Panel -->
+            <div id="route-info" class="sidebar-section route-info hidden">
+                <h3><i class="fas fa-info-circle"></i> Route Summary</h3>
+                <div class="route-stats">
+                    <div class="stat">
+                        <span class="stat-label">Distance</span>
+                        <span id="route-distance" class="stat-value">—</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Est. Time</span>
+                        <span id="route-time" class="stat-value">—</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Avg Speed Limit</span>
+                        <span id="route-avg-speed" class="stat-value">—</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Max Speed Limit</span>
+                        <span id="route-max-speed" class="stat-value">—</span>
+                    </div>
+                </div>
+
+                <!-- Speed Limit Breakdown -->
+                <h4 style="margin-top: 16px;"><i class="fas fa-tachometer-alt"></i> Speed Limits on Route</h4>
+                <div id="speed-breakdown" class="speed-breakdown"></div>
+
+                <!-- Turn-by-turn with speed limits -->
+                <h4 style="margin-top: 16px;"><i class="fas fa-list-ol"></i> Turn-by-Turn Directions</h4>
+                <div id="directions-list" class="directions-list"></div>
+            </div>
+        </aside>
+
+        <!-- Toggle Sidebar Button -->
+        <button id="toggle-sidebar" class="toggle-sidebar" title="Toggle sidebar">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+
+        <!-- Map Container -->
+        <div id="map"></div>
+
+        <!-- Speed Limit Legend -->
+        <div id="speed-legend" class="speed-legend hidden">
+            <h4>Speed Limits</h4>
+            <div class="legend-item"><span class="legend-color" style="background: #2ecc71;"></span> ≤ 25 mph</div>
+            <div class="legend-item"><span class="legend-color" style="background: #27ae60;"></span> 30 mph</div>
+            <div class="legend-item"><span class="legend-color" style="background: #f1c40f;"></span> 35 mph</div>
+            <div class="legend-item"><span class="legend-color" style="background: #e67e22;"></span> 40–45 mph</div>
+            <div class="legend-item"><span class="legend-color" style="background: #e74c3c;"></span> 50+ mph</div>
+            <div class="legend-item"><span class="legend-color" style="background: #95a5a6;"></span> Unknown</div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p id="loading-text">Finding your route...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
