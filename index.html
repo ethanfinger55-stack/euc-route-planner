@@ -170,6 +170,10 @@
 
         <!-- Navigation HUD -->
         <div id="nav-hud" class="nav-hud hidden">
+            <!-- Drag handle to slide up -->
+            <div class="nav-hud-handle" id="nav-hud-handle">
+                <div class="nav-hud-handle-bar"></div>
+            </div>
             <div class="nav-hud-top">
                 <div class="nav-hud-direction">
                     <div class="nav-hud-icon" id="nav-hud-icon"><i class="fas fa-arrow-up"></i></div>
@@ -182,6 +186,9 @@
                     <span id="nav-hud-speed-val">—</span>
                     <small>mph</small>
                 </div>
+                <button id="close-nav-btn" class="btn-close-nav" title="Exit navigation">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="nav-hud-bottom">
                 <div class="nav-hud-eta">
@@ -192,12 +199,14 @@
                     <i class="fas fa-road"></i>
                     <span id="nav-hud-remaining">—</span>
                 </div>
-                <button id="stop-nav-btn" class="btn btn-stop-nav">
-                    <i class="fas fa-stop"></i> End
-                </button>
             </div>
-            <!-- Upcoming step preview -->
-            <div class="nav-hud-upcoming" id="nav-hud-upcoming"></div>
+            <!-- Expandable directions panel -->
+            <div class="nav-hud-directions-panel" id="nav-hud-directions-panel">
+                <div class="nav-hud-directions-header">
+                    <h4><i class="fas fa-list-ol"></i> Turn-by-Turn Directions</h4>
+                </div>
+                <div class="nav-hud-directions-list" id="nav-hud-directions-list"></div>
+            </div>
         </div>
 
         <!-- Loading Overlay -->

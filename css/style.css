@@ -449,7 +449,7 @@ input[type="checkbox"] {
 /* ===== Speed Legend ===== */
 .speed-legend {
     position: absolute;
-    bottom: 30px;
+    bottom: 80px;
     right: 12px;
     background: var(--bg-sidebar);
     border: 1px solid var(--border-color);
@@ -573,7 +573,7 @@ input[type="checkbox"] {
 
 /* ===== Navigation HUD ===== */
 .nav-hud {
-    position: absolute;
+    position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
@@ -581,8 +581,15 @@ input[type="checkbox"] {
     background: var(--bg-sidebar);
     border-top: 2px solid var(--accent-blue);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
-    animation: slideUp 0.3s ease;
     user-select: none;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-hud.entering {
+    animation: slideUp 0.3s ease forwards;
 }
 
 @keyframes slideUp {
@@ -590,11 +597,55 @@ input[type="checkbox"] {
     to { transform: translateY(0); }
 }
 
+/* Drag handle */
+.nav-hud-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 4px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.nav-hud-handle:active {
+    cursor: grabbing;
+}
+
+.nav-hud-handle-bar {
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border-color);
+}
+
+/* Close / X button for nav */
+.btn-close-nav {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s;
+}
+
+.btn-close-nav:hover {
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+    color: white;
+}
+
 .nav-hud-top {
     display: flex;
     align-items: center;
-    padding: 16px 20px;
-    gap: 16px;
+    padding: 10px 20px 12px;
+    gap: 12px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -670,9 +721,9 @@ input[type="checkbox"] {
 .nav-hud-bottom {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     padding: 10px 20px;
-    gap: 16px;
+    gap: 24px;
 }
 
 .nav-hud-eta,
@@ -690,26 +741,73 @@ input[type="checkbox"] {
     font-size: 12px;
 }
 
-.nav-hud-upcoming {
-    padding: 0 20px 12px;
-    font-size: 12px;
-    color: var(--text-muted);
+/* ===== Expandable Directions Panel inside HUD ===== */
+.nav-hud-directions-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    border-top: 1px solid transparent;
 }
 
-.nav-hud-upcoming:empty {
-    display: none;
+.nav-hud.expanded .nav-hud-directions-panel {
+    max-height: 55vh;
+    border-top-color: var(--border-color);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
-.nav-hud-upcoming .upcoming-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-    margin-bottom: 2px;
+.nav-hud-directions-header {
+    padding: 12px 20px 8px;
+    position: sticky;
+    top: 0;
+    background: var(--bg-sidebar);
+    z-index: 1;
 }
 
-.nav-hud-upcoming .upcoming-text {
+.nav-hud-directions-header h4 {
+    font-size: 14px;
+    font-weight: 600;
     color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-hud-directions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 20px 16px;
+}
+
+.nav-hud-directions-list .direction-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.nav-hud-directions-list .direction-step-num {
+    background: var(--accent-blue);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Expanded state handle visual cue */
+.nav-hud.expanded .nav-hud-handle-bar {
+    background: var(--accent-blue);
 }
 
 /* Position marker for live GPS */
@@ -1194,9 +1292,9 @@ input[type="checkbox"] {
         align-items: center;
     }
 
-    /* ----- Speed legend compact on mobile ----- */
+    /* ----- Speed legend compact on mobile — raised above browser chrome ----- */
     .speed-legend {
-        bottom: 12px;
+        bottom: calc(70px + env(safe-area-inset-bottom));
         right: 12px;
         font-size: 11px;
         padding: 8px 12px;
@@ -1223,12 +1321,23 @@ input[type="checkbox"] {
     /* ----- Navigation HUD mobile-optimized ----- */
     .nav-hud {
         border-radius: 16px 16px 0 0;
-        padding-bottom: env(safe-area-inset-bottom);
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        max-height: 90vh;
+        max-height: 90dvh;
+    }
+
+    .nav-hud-handle {
+        padding: 12px 0 6px;
+    }
+
+    .nav-hud-handle-bar {
+        width: 48px;
+        height: 5px;
     }
 
     .nav-hud-top {
-        padding: 18px 16px;
-        gap: 12px;
+        padding: 8px 16px 14px;
+        gap: 10px;
     }
 
     .nav-hud-icon {
@@ -1239,7 +1348,7 @@ input[type="checkbox"] {
     }
 
     .nav-hud-distance {
-        font-size: 30px;
+        font-size: 28px;
     }
 
     .nav-hud-instruction {
@@ -1252,8 +1361,8 @@ input[type="checkbox"] {
     }
 
     .nav-hud-speed-limit {
-        width: 62px;
-        height: 62px;
+        width: 58px;
+        height: 58px;
         border-width: 5px;
     }
 
@@ -1261,9 +1370,15 @@ input[type="checkbox"] {
         font-size: 22px;
     }
 
+    .btn-close-nav {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+
     .nav-hud-bottom {
-        padding: 12px 16px;
-        gap: 10px;
+        padding: 8px 16px 4px;
+        gap: 16px;
     }
 
     .nav-hud-eta,
@@ -1271,16 +1386,31 @@ input[type="checkbox"] {
         font-size: 14px;
     }
 
-    .btn-stop-nav {
-        padding: 10px 20px;
-        font-size: 15px;
-        min-height: 44px;
-        border-radius: 10px;
+    /* Directions panel mobile */
+    .nav-hud.expanded .nav-hud-directions-panel {
+        max-height: 50dvh;
     }
 
-    .nav-hud-upcoming {
-        padding: 0 16px 14px;
-        font-size: 13px;
+    .nav-hud-directions-header {
+        padding: 12px 16px 8px;
+    }
+
+    .nav-hud-directions-list {
+        padding: 0 16px 20px;
+        gap: 4px;
+    }
+
+    .nav-hud-directions-list .direction-step {
+        padding: 12px;
+        font-size: 14px;
+        border-radius: 10px;
+        min-height: 48px;
+    }
+
+    .nav-hud-directions-list .direction-step-num {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
     }
 
     /* ----- API section ----- */

@@ -916,6 +916,33 @@
         });
     }
 
+    function populateNavDirections() {
+        const container = $('#nav-hud-directions-list');
+        if (!container || !navSteps) return;
+        container.innerHTML = '';
+
+        navSteps.forEach((step, idx) => {
+            const waypointIdx = Math.min(step.way_points[0], (navSpeedData || []).length - 1);
+            const speed = (navSpeedData && navSpeedData[waypointIdx]) ? navSpeedData[waypointIdx].mph : null;
+
+            const div = document.createElement('div');
+            div.className = 'direction-step';
+            if (idx < navCurrentStepIdx) div.classList.add('completed-step');
+            if (idx === navCurrentStepIdx) div.classList.add('active-step');
+
+            const speedBadge = speed != null
+                ? `<span class="direction-speed-badge" style="background: ${getSpeedBadgeColor(speed)};">${speed} mph</span>`
+                : `<span class="direction-speed-badge" style="background: #95a5a6;">? mph</span>`;
+
+            div.innerHTML = `
+                <span class="direction-step-num">${idx + 1}</span>
+                <span class="direction-step-text">${step.instruction} <small>(${(step.distance).toFixed(2)} mi)</small></span>
+                ${speedBadge}
+            `;
+            container.appendChild(div);
+        });
+    }
+
     // ===== Loading UI =====
     function showLoading(text) {
         loadingText.textContent = text || 'Loading...';
@@ -1092,7 +1119,14 @@
 
         // Show navigation HUD
         const hud = $('#nav-hud');
-        if (hud) hud.classList.remove('hidden');
+        if (hud) {
+            hud.classList.remove('hidden', 'expanded');
+            hud.classList.add('entering');
+            setTimeout(() => hud.classList.remove('entering'), 350);
+        }
+
+        // Populate directions inside the HUD panel
+        populateNavDirections();
 
         // Hide speed legend during nav (HUD shows speed)
         speedLegend.classList.add('hidden');
@@ -1131,7 +1165,10 @@
 
         // Hide HUD
         const hud = $('#nav-hud');
-        if (hud) hud.classList.add('hidden');
+        if (hud) {
+            hud.classList.add('hidden');
+            hud.classList.remove('expanded');
+        }
 
         // Show legend again
         speedLegend.classList.remove('hidden');
@@ -1379,10 +1416,19 @@
         if (startNavBtn) {
             startNavBtn.addEventListener('click', startNavigation);
         }
-        const stopNavBtn = $('#stop-nav-btn');
-        if (stopNavBtn) {
-            stopNavBtn.addEventListener('click', () => {
+        const closeNavBtn = $('#close-nav-btn');
+        if (closeNavBtn) {
+            closeNavBtn.addEventListener('click', () => {
                 if (confirm('End navigation?')) stopNavigation();
+            });
+        }
+
+        // Nav HUD handle: tap or drag to expand/collapse directions
+        const navHud = $('#nav-hud');
+        const navHandle = $('#nav-hud-handle');
+        if (navHandle && navHud) {
+            navHandle.addEventListener('click', () => {
+                navHud.classList.toggle('expanded');
             });
         }
     });
