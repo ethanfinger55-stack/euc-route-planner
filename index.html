@@ -125,6 +125,19 @@
                 </div>
             </div>
 
+            <!-- Range Estimator -->
+            <div class="sidebar-section">
+                <h3><i class="fas fa-battery-three-quarters"></i> Range Estimator</h3>
+                <div class="preference-item">
+                    <label for="wheel-range">Wheel rated range (miles)</label>
+                    <input type="number" id="wheel-range" min="1" max="200" value="30" class="range-input" />
+                </div>
+                <div class="preference-item">
+                    <label for="battery-pct">Current battery %</label>
+                    <input type="number" id="battery-pct" min="1" max="100" value="100" class="range-input" />
+                </div>
+            </div>
+
             <!-- Find Route Button -->
             <div class="sidebar-section">
                 <button id="find-route-btn" class="btn btn-primary btn-full">
@@ -157,6 +170,38 @@
                 <!-- Speed Limit Breakdown -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-tachometer-alt"></i> Speed Limits on Route</h4>
                 <div id="speed-breakdown" class="speed-breakdown"></div>
+
+                <!-- Range Estimate Indicator -->
+                <div id="range-estimate" class="range-estimate hidden">
+                    <div class="range-indicator" id="range-indicator">
+                        <i class="fas fa-battery-full"></i>
+                        <span id="range-text">—</span>
+                    </div>
+                </div>
+
+                <!-- Elevation Profile -->
+                <h4 style="margin-top: 16px;"><i class="fas fa-mountain"></i> Elevation Profile</h4>
+                <div id="elevation-profile" class="elevation-profile hidden">
+                    <canvas id="elevation-canvas"></canvas>
+                    <div class="elevation-stats">
+                        <span><i class="fas fa-arrow-up"></i> <span id="elev-gain">—</span></span>
+                        <span><i class="fas fa-arrow-down"></i> <span id="elev-loss">—</span></span>
+                        <span><i class="fas fa-mountain"></i> <span id="elev-max">—</span></span>
+                    </div>
+                </div>
+
+                <!-- Weather Conditions -->
+                <h4 style="margin-top: 16px;"><i class="fas fa-cloud-sun"></i> Weather Conditions</h4>
+                <div id="weather-info" class="weather-info hidden">
+                    <div class="weather-card">
+                        <div class="weather-main">
+                            <span class="weather-temp" id="weather-temp">—</span>
+                            <span class="weather-desc" id="weather-desc">—</span>
+                        </div>
+                        <div class="weather-wind" id="weather-wind">—</div>
+                        <div class="weather-wind-warning hidden" id="weather-wind-warn"></div>
+                    </div>
+                </div>
 
                 <!-- Turn-by-turn with speed limits -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-list-ol"></i> Turn-by-Turn Directions</h4>

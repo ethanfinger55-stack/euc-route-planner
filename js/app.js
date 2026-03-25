@@ -139,6 +139,10 @@
     let manualSpeedOverrides = {};
     let pendingSpeedLimitCoordIdx = null; // index into route coords for the modal
 
+    // Elevation & weather state
+    let navElevationData = null;
+    let windOverlay = null;
+
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
     const apiKeyInput = $('#api-key-input');
@@ -544,6 +548,7 @@
         routeLayers = [];
         speedMarkers.forEach(m => map.removeLayer(m));
         speedMarkers = [];
+        if (windOverlay) { map.removeControl(windOverlay); windOverlay = null; }
     }
 
     // ===== Main Route Finding =====
@@ -567,6 +572,10 @@
 
         showLoading('Calculating EUC-friendly route...');
         clearRoute();
+        // Reset feature panels for fresh results
+        if ($('#weather-info')) $('#weather-info').classList.add('hidden');
+        if ($('#elevation-profile')) $('#elevation-profile').classList.add('hidden');
+        if ($('#range-estimate')) $('#range-estimate').classList.add('hidden');
 
         try {
             // Step 1: Get route from ORS
@@ -586,6 +595,12 @@
             // Step 3: Fetch speed limits from Overpass API
             const speedData = await fetchSpeedLimits(routeCoords);
 
+            setLoadingText('Fetching elevation & weather...');
+            const [elevationData] = await Promise.all([
+                fetchElevationData(routeCoords),
+                fetchWeather(routeCoords)
+            ]);
+
             setLoadingText('Drawing route with speed limits...');
 
             // Step 4: Draw the route with speed-colored segments
@@ -596,6 +611,10 @@
 
             // Step 6: Show route info
             showRouteInfo(routeData, speedData, steps);
+
+            // Elevation profile and range estimate
+            drawElevationProfile(routeCoords, elevationData);
+            updateRangeEstimate(routeData, elevationData);
 
             // Fit map to route
             const bounds = L.latLngBounds(routeCoords);
@@ -614,6 +633,7 @@
             navSteps = steps;
             navSpeedData = speedData;
             navTotalDistanceMi = routeData.segments[0].distance;
+            navElevationData = elevationData;
 
             // Show Start Navigation button
             const navBtn = $('#start-nav-btn');
@@ -1103,6 +1123,321 @@
         drawColoredRoute(navRouteCoords, navSpeedData);
         placeSpeedSigns(navRouteCoords, navSpeedData);
         showRouteInfo({ segments: [{ distance: navTotalDistanceMi, duration: 0 }] }, navSpeedData, navSteps);
+    }
+
+    // ===== Elevation Data (Open-Meteo) =====
+    async function fetchElevationData(routeCoords) {
+        try {
+            const sampleRate = Math.max(1, Math.floor(routeCoords.length / 80));
+            const sampledIndices = [];
+            for (let i = 0; i < routeCoords.length; i += sampleRate) {
+                sampledIndices.push(i);
+            }
+            if (sampledIndices[sampledIndices.length - 1] !== routeCoords.length - 1) {
+                sampledIndices.push(routeCoords.length - 1);
+            }
+
+            const lats = sampledIndices.map(i => routeCoords[i][0].toFixed(4)).join(',');
+            const lngs = sampledIndices.map(i => routeCoords[i][1].toFixed(4)).join(',');
+
+            const resp = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`);
+            if (!resp.ok) throw new Error('Elevation API error');
+            const data = await resp.json();
+
+            if (!data.elevation || data.elevation.length === 0) return null;
+
+            // Interpolate elevations for all route points (in feet)
+            const elevations = new Array(routeCoords.length);
+            for (let si = 0; si < sampledIndices.length; si++) {
+                elevations[sampledIndices[si]] = data.elevation[si] * 3.28084; // m to ft
+            }
+
+            for (let i = 0; i < routeCoords.length; i++) {
+                if (elevations[i] != null) continue;
+                let prevIdx = i - 1;
+                while (prevIdx >= 0 && elevations[prevIdx] == null) prevIdx--;
+                let nextIdx = i + 1;
+                while (nextIdx < routeCoords.length && elevations[nextIdx] == null) nextIdx++;
+
+                if (prevIdx >= 0 && nextIdx < routeCoords.length) {
+                    const t = (i - prevIdx) / (nextIdx - prevIdx);
+                    elevations[i] = elevations[prevIdx] + t * (elevations[nextIdx] - elevations[prevIdx]);
+                } else if (prevIdx >= 0) {
+                    elevations[i] = elevations[prevIdx];
+                } else if (nextIdx < routeCoords.length) {
+                    elevations[i] = elevations[nextIdx];
+                } else {
+                    elevations[i] = 0;
+                }
+            }
+
+            return elevations;
+        } catch (e) {
+            console.warn('Elevation fetch error:', e);
+            return null;
+        }
+    }
+
+    // ===== Draw Elevation Profile =====
+    function drawElevationProfile(routeCoords, elevations) {
+        const container = $('#elevation-profile');
+        const canvas = document.getElementById('elevation-canvas');
+        if (!container || !canvas || !elevations || elevations.length < 2) return;
+
+        container.classList.remove('hidden');
+
+        const dpr = window.devicePixelRatio || 1;
+        const cw = canvas.clientWidth || 300;
+        const ch = 120;
+        canvas.width = cw * dpr;
+        canvas.height = ch * dpr;
+        canvas.style.height = ch + 'px';
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        // Calculate cumulative distances in miles
+        const distances = [0];
+        for (let i = 1; i < routeCoords.length; i++) {
+            distances.push(distances[i - 1] + haversineDistance(routeCoords[i - 1], routeCoords[i]) * 0.621371);
+        }
+        const totalDist = distances[distances.length - 1] || 1;
+
+        const minElev = Math.min(...elevations) - 10;
+        const maxElev = Math.max(...elevations) + 10;
+        const elevRange = maxElev - minElev || 1;
+
+        const pad = { top: 8, bottom: 18, left: 36, right: 6 };
+        const plotW = cw - pad.left - pad.right;
+        const plotH = ch - pad.top - pad.bottom;
+
+        // Grid lines and labels
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 1;
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'right';
+
+        for (let i = 0; i <= 3; i++) {
+            const y = pad.top + (plotH * i / 3);
+            const elev = maxElev - (elevRange * i / 3);
+            ctx.beginPath();
+            ctx.moveTo(pad.left, y);
+            ctx.lineTo(cw - pad.right, y);
+            ctx.stroke();
+            ctx.fillText(Math.round(elev) + "'", pad.left - 3, y + 3);
+        }
+
+        // Area fill under curve
+        ctx.beginPath();
+        for (let i = 0; i < elevations.length; i++) {
+            const x = pad.left + (distances[i] / totalDist) * plotW;
+            const y = pad.top + plotH - ((elevations[i] - minElev) / elevRange) * plotH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.lineTo(pad.left + plotW, pad.top + plotH);
+        ctx.lineTo(pad.left, pad.top + plotH);
+        ctx.closePath();
+
+        const gradient = ctx.createLinearGradient(0, pad.top, 0, ch);
+        gradient.addColorStop(0, 'rgba(74, 144, 217, 0.4)');
+        gradient.addColorStop(1, 'rgba(74, 144, 217, 0.02)');
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Profile line
+        ctx.beginPath();
+        for (let i = 0; i < elevations.length; i++) {
+            const x = pad.left + (distances[i] / totalDist) * plotW;
+            const y = pad.top + plotH - ((elevations[i] - minElev) / elevRange) * plotH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = '#4a90d9';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Elevation stats
+        let totalGain = 0, totalLoss = 0;
+        for (let i = 1; i < elevations.length; i++) {
+            const diff = elevations[i] - elevations[i - 1];
+            if (diff > 0) totalGain += diff;
+            else totalLoss += Math.abs(diff);
+        }
+
+        const gainEl = document.getElementById('elev-gain');
+        const lossEl = document.getElementById('elev-loss');
+        const maxEl = document.getElementById('elev-max');
+        if (gainEl) gainEl.textContent = Math.round(totalGain) + ' ft gain';
+        if (lossEl) lossEl.textContent = Math.round(totalLoss) + ' ft loss';
+        if (maxEl) maxEl.textContent = Math.round(Math.max(...elevations)) + ' ft max';
+    }
+
+    // ===== Range Estimator =====
+    function updateRangeEstimate(routeData, elevations) {
+        const rangeInput = document.getElementById('wheel-range');
+        const battInput = document.getElementById('battery-pct');
+        const rangeEl = $('#range-estimate');
+        const indicatorEl = $('#range-indicator');
+
+        if (!rangeInput || !battInput || !rangeEl || !indicatorEl) return;
+
+        const wheelRange = parseFloat(rangeInput.value) || 30;
+        const batteryPct = Math.min(100, Math.max(1, parseFloat(battInput.value) || 100));
+        const availableRange = wheelRange * (batteryPct / 100);
+        const routeDistance = routeData.segments[0].distance; // miles
+
+        // Elevation penalty: each 100ft of gain reduces effective range ~2%
+        let elevGain = 0;
+        if (elevations) {
+            for (let i = 1; i < elevations.length; i++) {
+                const diff = elevations[i] - elevations[i - 1];
+                if (diff > 0) elevGain += diff;
+            }
+        }
+        const elevPenalty = (elevGain / 100) * 0.02 * wheelRange;
+        const effectiveRange = availableRange - elevPenalty;
+
+        const usageRatio = routeDistance / effectiveRange;
+        const margin = effectiveRange - routeDistance;
+
+        let status, label, icon;
+        if (usageRatio < 0.6) {
+            status = 'green';
+            label = Math.round(margin) + ' mi to spare';
+            icon = 'fa-battery-full';
+        } else if (usageRatio < 0.85) {
+            status = 'yellow';
+            label = 'Tight \u2014 ' + Math.round(margin) + ' mi margin';
+            icon = 'fa-battery-half';
+        } else if (margin > 0) {
+            status = 'red';
+            label = 'Very tight \u2014 ' + Math.round(margin) + ' mi margin';
+            icon = 'fa-battery-quarter';
+        } else {
+            status = 'red';
+            label = Math.round(Math.abs(margin)) + ' mi short!';
+            icon = 'fa-battery-empty';
+        }
+
+        indicatorEl.className = 'range-indicator range-' + status;
+        indicatorEl.innerHTML = '<i class="fas ' + icon + '"></i> <span>' + label + '</span>';
+        rangeEl.classList.remove('hidden');
+    }
+
+    // ===== Weather (Open-Meteo) =====
+    async function fetchWeather(routeCoords) {
+        try {
+            const midIdx = Math.floor(routeCoords.length / 2);
+            const lat = routeCoords[midIdx][0].toFixed(4);
+            const lng = routeCoords[midIdx][1].toFixed(4);
+
+            const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat +
+                '&longitude=' + lng +
+                '&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code' +
+                '&temperature_unit=fahrenheit&wind_speed_unit=mph';
+
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('Weather API error');
+            const data = await resp.json();
+            if (!data.current) return;
+
+            const c = data.current;
+            const temp = Math.round(c.temperature_2m);
+            const windSpeed = Math.round(c.wind_speed_10m);
+            const windDir = c.wind_direction_10m;
+            const windGusts = Math.round(c.wind_gusts_10m || 0);
+            const weatherCode = c.weather_code;
+            const desc = getWeatherDescription(weatherCode);
+            const windDirLabel = getWindDirectionLabel(windDir);
+
+            const tempEl = $('#weather-temp');
+            const descEl = $('#weather-desc');
+            const windEl = $('#weather-wind');
+            const warnEl = $('#weather-wind-warn');
+            const weatherPanel = $('#weather-info');
+
+            if (tempEl) tempEl.textContent = temp + '\u00B0F';
+            if (descEl) descEl.innerHTML = '<i class="fas ' + getWeatherIcon(weatherCode) + '"></i> ' + desc;
+            if (windEl) windEl.innerHTML = '<i class="fas fa-wind"></i> ' + windSpeed + ' mph ' + windDirLabel +
+                (windGusts > windSpeed + 5 ? ' (gusts ' + windGusts + ')' : '');
+
+            // Wind warnings for EUC riders
+            if (warnEl) {
+                if (windSpeed >= 30) {
+                    warnEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Caution: strong winds \u2014 reduced range & stability';
+                    warnEl.classList.remove('hidden');
+                } else if (windSpeed >= 20) {
+                    warnEl.innerHTML = '<i class="fas fa-info-circle"></i> Moderate winds \u2014 may reduce range';
+                    warnEl.classList.remove('hidden');
+                } else {
+                    warnEl.classList.add('hidden');
+                }
+            }
+
+            if (weatherPanel) weatherPanel.classList.remove('hidden');
+
+            // Add wind direction overlay on map
+            addWindOverlay(windSpeed, windDir, windDirLabel);
+
+        } catch (e) {
+            console.warn('Weather fetch error:', e);
+        }
+    }
+
+    function getWeatherDescription(code) {
+        var codes = {
+            0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+            45: 'Foggy', 48: 'Rime fog',
+            51: 'Light drizzle', 53: 'Mod. drizzle', 55: 'Dense drizzle',
+            61: 'Light rain', 63: 'Moderate rain', 65: 'Heavy rain',
+            66: 'Freezing rain', 67: 'Heavy freezing rain',
+            71: 'Light snow', 73: 'Moderate snow', 75: 'Heavy snow',
+            77: 'Snow grains', 80: 'Light showers', 81: 'Mod. showers', 82: 'Heavy showers',
+            85: 'Light snow showers', 86: 'Heavy snow showers',
+            95: 'Thunderstorm', 96: 'T-storm w/ hail', 99: 'T-storm w/ heavy hail'
+        };
+        return codes[code] || 'Unknown';
+    }
+
+    function getWeatherIcon(code) {
+        if (code === 0) return 'fa-sun';
+        if (code <= 2) return 'fa-cloud-sun';
+        if (code === 3) return 'fa-cloud';
+        if (code <= 48) return 'fa-smog';
+        if (code <= 55) return 'fa-cloud-rain';
+        if (code <= 67) return 'fa-cloud-showers-heavy';
+        if (code <= 77) return 'fa-snowflake';
+        if (code <= 82) return 'fa-cloud-showers-heavy';
+        if (code <= 86) return 'fa-snowflake';
+        return 'fa-bolt';
+    }
+
+    function getWindDirectionLabel(degrees) {
+        var dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                    'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+        return dirs[Math.round(degrees / 22.5) % 16];
+    }
+
+    function addWindOverlay(speed, direction, dirLabel) {
+        if (windOverlay) { map.removeControl(windOverlay); windOverlay = null; }
+
+        var arrowRotation = (direction + 180) % 360;
+
+        windOverlay = L.control({ position: 'topright' });
+        windOverlay.onAdd = function () {
+            var div = L.DomUtil.create('div', 'wind-overlay');
+            div.innerHTML =
+                '<div class="wind-arrow" style="transform: rotate(' + arrowRotation + 'deg);">' +
+                '<i class="fas fa-arrow-up"></i></div>' +
+                '<div class="wind-info">' +
+                '<span class="wind-speed">' + speed + ' mph</span>' +
+                '<span class="wind-dir">from ' + dirLabel + '</span></div>';
+            L.DomEvent.disableClickPropagation(div);
+            return div;
+        };
+        windOverlay.addTo(map);
     }
 
     // ===== Loading UI =====
@@ -1649,5 +1984,26 @@
                 applyManualSpeedLimit(mph);
             });
         });
+
+        // Range estimator persistence and events
+        const wheelRangeInput = $('#wheel-range');
+        const batteryInput = $('#battery-pct');
+        if (wheelRangeInput) {
+            const savedRange = localStorage.getItem('euc_wheel_range');
+            if (savedRange) wheelRangeInput.value = savedRange;
+            wheelRangeInput.addEventListener('change', function () {
+                localStorage.setItem('euc_wheel_range', wheelRangeInput.value);
+                if (navElevationData && navTotalDistanceMi) {
+                    updateRangeEstimate({ segments: [{ distance: navTotalDistanceMi }] }, navElevationData);
+                }
+            });
+        }
+        if (batteryInput) {
+            batteryInput.addEventListener('change', function () {
+                if (navElevationData && navTotalDistanceMi) {
+                    updateRangeEstimate({ segments: [{ distance: navTotalDistanceMi }] }, navElevationData);
+                }
+            });
+        }
     });
 })();
