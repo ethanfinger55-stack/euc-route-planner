@@ -130,6 +130,14 @@
     let navSpeedData = null;
     let navCurrentStepIdx = 0;
     let navTotalDistanceMi = 0;
+    let navCurrentSpeedMph = 0;
+    let navCurrentSpeedLimit = null;
+    let navLastPosition = null;
+    let navLastTimestamp = null;
+
+    // Manual speed limit overrides (keyed by "lat,lon" of route point)
+    let manualSpeedOverrides = {};
+    let pendingSpeedLimitCoordIdx = null; // index into route coords for the modal
 
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
@@ -149,11 +157,76 @@
     const toggleSidebarBtn = $('#toggle-sidebar');
     const closeSidebarBtn = $('#close-sidebar-btn');
 
+    // ===== Home Address =====
+    function loadHomeAddress() {
+        try {
+            const raw = localStorage.getItem('euc_home_address');
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    }
+
+    function saveHomeAddress(label, coords) {
+        localStorage.setItem('euc_home_address', JSON.stringify({ label, coords }));
+        updateHomeDisplay();
+    }
+
+    function updateHomeDisplay() {
+        const home = loadHomeAddress();
+        const textEl = $('#home-address-text');
+        const goBtn = $('#go-home-btn');
+        if (home) {
+            textEl.textContent = home.label;
+            goBtn.disabled = false;
+        } else {
+            textEl.textContent = 'No home address set';
+            goBtn.disabled = true;
+        }
+    }
+
+    function setHomeAddress() {
+        // Use the current start input if it's populated, otherwise prompt
+        if (startCoords && startInput.value.trim()) {
+            saveHomeAddress(startInput.value.trim(), startCoords);
+        } else if (endCoords && endInput.value.trim()) {
+            saveHomeAddress(endInput.value.trim(), endCoords);
+        } else {
+            alert('Enter a start or destination address first, then tap Set Home.');
+        }
+    }
+
+    function goHomeAddress() {
+        const home = loadHomeAddress();
+        if (!home) return;
+        endCoords = home.coords;
+        endInput.value = home.label;
+        placeEndMarker(endCoords);
+        if (startCoords) {
+            const bounds = L.latLngBounds([startCoords, endCoords]);
+            map.fitBounds(bounds, { padding: [60, 60] });
+        } else {
+            map.setView(endCoords, DEFAULT_ZOOM);
+        }
+    }
+
+    // ===== Manual Speed Limit Overrides =====
+    function loadManualSpeedOverrides() {
+        try {
+            const raw = localStorage.getItem('euc_speed_overrides');
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) { return {}; }
+    }
+
+    function saveManualSpeedOverrides() {
+        localStorage.setItem('euc_speed_overrides', JSON.stringify(manualSpeedOverrides));
+    }
+
     // ===== Initialization =====
     function init() {
         initMap();
         loadApiKey();
         bindEvents();
+        updateHomeDisplay();
+        manualSpeedOverrides = loadManualSpeedOverrides();
 
         // On mobile, start with sidebar collapsed so map is visible
         if (window.innerWidth <= 768) {
@@ -205,6 +278,18 @@
             endCoords = null;
         });
 
+        // Clear all fields button
+        const clearAllBtn = $('#clear-all-btn');
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', clearAllFields);
+        }
+
+        // Home address buttons
+        const setHomeBtn = $('#set-home-btn');
+        if (setHomeBtn) setHomeBtn.addEventListener('click', setHomeAddress);
+        const goHomeBtn = $('#go-home-btn');
+        if (goHomeBtn) goHomeBtn.addEventListener('click', goHomeAddress);
+
         startInput.addEventListener('input', (e) => handleGeoInput(e, 'start'));
         endInput.addEventListener('input', (e) => handleGeoInput(e, 'end'));
 
@@ -240,6 +325,19 @@
         apiKey = key;
         localStorage.setItem('ors_api_key', key);
         $('#api-key-section').style.borderColor = 'var(--accent-green)';
+    }
+
+    // ===== Clear All Fields =====
+    function clearAllFields() {
+        startInput.value = '';
+        endInput.value = '';
+        startCoords = null;
+        endCoords = null;
+        if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
+        if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+        clearRoute();
+        routeInfoPanel.classList.add('hidden');
+        speedLegend.classList.add('hidden');
     }
 
     function toggleSidebar() {
@@ -702,7 +800,13 @@
     }
 
     function matchSpeedToRoute(routeCoords, roads) {
-        return routeCoords.map(point => {
+        return routeCoords.map((point, idx) => {
+            // Check for manual override first
+            const key = `${point[0].toFixed(4)},${point[1].toFixed(4)}`;
+            if (manualSpeedOverrides[key] != null) {
+                return { mph: manualSpeedOverrides[key], name: 'Manual', type: 'road' };
+            }
+
             let bestDist = Infinity;
             let bestRoad = { mph: null, name: 'Unknown', type: 'road' };
 
@@ -764,7 +868,23 @@
 
                 const speedLabel = prevSpeed != null ? `${prevSpeed} mph` : 'Speed unknown';
                 const roadName = speedData[segStart] ? speedData[segStart].name : '';
-                line.bindPopup(`<b>${roadName}</b><br>Speed limit: ${speedLabel}`);
+
+                if (prevSpeed == null) {
+                    // Unknown speed — offer to set it
+                    const midIdx = Math.floor((segStart + i) / 2);
+                    line.bindPopup(`<b>${roadName}</b><br>Speed limit: Unknown<br><button class="set-speed-popup-btn" data-idx="${midIdx}" style="margin-top:6px;padding:6px 12px;background:#4a90d9;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Set Speed Limit</button>`);
+                    line.on('popupopen', (e) => {
+                        const btn = e.popup.getElement().querySelector('.set-speed-popup-btn');
+                        if (btn) {
+                            btn.addEventListener('click', () => {
+                                map.closePopup();
+                                openSpeedLimitModal(parseInt(btn.dataset.idx, 10), roadName);
+                            });
+                        }
+                    });
+                } else {
+                    line.bindPopup(`<b>${roadName}</b><br>Speed limit: ${speedLabel}`);
+                }
 
                 routeLayers.push(line);
                 segStart = i;
@@ -941,6 +1061,48 @@
             `;
             container.appendChild(div);
         });
+    }
+
+    // ===== Speed Limit Modal =====
+    function openSpeedLimitModal(routeCoordIdx, roadName) {
+        pendingSpeedLimitCoordIdx = routeCoordIdx;
+        const modal = $('#speed-limit-modal');
+        const roadEl = $('#speed-limit-modal-road');
+        if (roadEl) roadEl.textContent = roadName || 'Unknown Road';
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeSpeedLimitModal() {
+        const modal = $('#speed-limit-modal');
+        if (modal) modal.classList.add('hidden');
+        pendingSpeedLimitCoordIdx = null;
+    }
+
+    function applyManualSpeedLimit(mph) {
+        if (pendingSpeedLimitCoordIdx == null || !navRouteCoords) {
+            closeSpeedLimitModal();
+            return;
+        }
+
+        // Apply to nearby route points (within ~100m of the selected point)
+        const centerCoord = navRouteCoords[pendingSpeedLimitCoordIdx];
+        navRouteCoords.forEach((coord, idx) => {
+            const dist = haversineDistance(coord, centerCoord);
+            if (dist < 0.15 && navSpeedData[idx] && navSpeedData[idx].mph == null) {
+                const key = `${coord[0].toFixed(4)},${coord[1].toFixed(4)}`;
+                manualSpeedOverrides[key] = mph;
+                navSpeedData[idx] = { mph, name: 'Manual', type: 'road' };
+            }
+        });
+
+        saveManualSpeedOverrides();
+        closeSpeedLimitModal();
+
+        // Re-draw the route with updated speed data
+        clearRoute();
+        drawColoredRoute(navRouteCoords, navSpeedData);
+        placeSpeedSigns(navRouteCoords, navSpeedData);
+        showRouteInfo({ segments: [{ distance: navTotalDistanceMi, duration: 0 }] }, navSpeedData, navSteps);
     }
 
     // ===== Loading UI =====
@@ -1151,6 +1313,10 @@
 
     function stopNavigation() {
         navActive = false;
+        navCurrentSpeedMph = 0;
+        navCurrentSpeedLimit = null;
+        navLastPosition = null;
+        navLastTimestamp = null;
 
         if (navWatchId != null) {
             navigator.geolocation.clearWatch(navWatchId);
@@ -1192,6 +1358,24 @@
         const userLng = position.coords.longitude;
         const userCoord = [userLat, userLng];
 
+        // Calculate speed from GPS
+        if (position.coords.speed != null && position.coords.speed >= 0) {
+            // GPS speed is in m/s, convert to mph
+            navCurrentSpeedMph = Math.round(position.coords.speed * 2.23694);
+        } else if (navLastPosition && navLastTimestamp) {
+            // Fallback: calculate from position delta
+            const distKm = haversineDistance(userCoord, navLastPosition);
+            const timeSec = (position.timestamp - navLastTimestamp) / 1000;
+            if (timeSec > 0.5) {
+                navCurrentSpeedMph = Math.round((distKm / timeSec) * 2236.94 / 1000);
+            }
+        }
+        navLastPosition = userCoord;
+        navLastTimestamp = position.timestamp;
+
+        // Update speedometer display
+        updateSpeedometer();
+
         // Update / create position marker
         if (navPositionMarker) {
             navPositionMarker.setLatLng(userCoord);
@@ -1227,6 +1411,27 @@
         const distToEnd = haversineDistance(userCoord, lastCoord);
         if (distToEnd < NAV_ARRIVAL_THRESHOLD_KM) {
             onNavArrival();
+        }
+    }
+
+    function updateSpeedometer() {
+        const speedValEl = $('#nav-speedometer-val');
+        const speedometerEl = $('#nav-hud-speedometer');
+        if (!speedValEl || !speedometerEl) return;
+
+        speedValEl.textContent = navCurrentSpeedMph;
+
+        // Get current speed limit
+        if (navSpeedData && navSteps && navSteps[navCurrentStepIdx]) {
+            const wpIdx = Math.min(navSteps[navCurrentStepIdx].way_points[0], navSpeedData.length - 1);
+            navCurrentSpeedLimit = navSpeedData[wpIdx] ? navSpeedData[wpIdx].mph : null;
+        }
+
+        // Warning if over the speed limit
+        if (navCurrentSpeedLimit != null && navCurrentSpeedMph > navCurrentSpeedLimit) {
+            speedometerEl.classList.add('over-limit');
+        } else {
+            speedometerEl.classList.remove('over-limit');
         }
     }
 
@@ -1431,5 +1636,18 @@
                 navHud.classList.toggle('expanded');
             });
         }
+
+        // Speed limit modal
+        const speedModalCancel = $('#speed-limit-modal-cancel');
+        if (speedModalCancel) {
+            speedModalCancel.addEventListener('click', closeSpeedLimitModal);
+        }
+        const speedOptions = document.querySelectorAll('.speed-option');
+        speedOptions.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mph = parseInt(btn.dataset.speed, 10);
+                applyManualSpeedLimit(mph);
+            });
+        });
     });
 })();

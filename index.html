@@ -47,6 +47,22 @@
                 </div>
             </div>
 
+            <!-- Home Address -->
+            <div class="sidebar-section">
+                <h3><i class="fas fa-home"></i> Home Address</h3>
+                <div id="home-address-display" class="home-address-display">
+                    <span id="home-address-text" class="home-address-text">No home address set</span>
+                </div>
+                <div class="home-address-actions">
+                    <button id="set-home-btn" class="btn btn-sm" title="Set home address">
+                        <i class="fas fa-map-pin"></i> Set Home
+                    </button>
+                    <button id="go-home-btn" class="btn btn-sm" title="Navigate home" disabled>
+                        <i class="fas fa-home"></i> Go Home
+                    </button>
+                </div>
+            </div>
+
             <!-- Route Input Section -->
             <div class="sidebar-section">
                 <label for="start-input">
@@ -68,6 +84,10 @@
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
+
+                <button id="clear-all-btn" class="btn btn-sm btn-full" style="margin-top: 10px;">
+                    <i class="fas fa-eraser"></i> Clear Start &amp; Destination
+                </button>
 
                 <!-- Geocode suggestions dropdown -->
                 <div id="suggestions-dropdown" class="suggestions-dropdown hidden"></div>
@@ -191,6 +211,10 @@
                 </button>
             </div>
             <div class="nav-hud-bottom">
+                <div class="nav-hud-speedometer" id="nav-hud-speedometer">
+                    <span class="speedometer-value" id="nav-speedometer-val">0</span>
+                    <span class="speedometer-unit">mph</span>
+                </div>
                 <div class="nav-hud-eta">
                     <i class="fas fa-clock"></i>
                     <span id="nav-hud-eta">—</span>
@@ -206,6 +230,27 @@
                     <h4><i class="fas fa-list-ol"></i> Turn-by-Turn Directions</h4>
                 </div>
                 <div class="nav-hud-directions-list" id="nav-hud-directions-list"></div>
+            </div>
+        </div>
+
+        <!-- Speed Limit Update Modal -->
+        <div id="speed-limit-modal" class="speed-limit-modal hidden">
+            <div class="speed-limit-modal-content">
+                <h3><i class="fas fa-tachometer-alt"></i> Set Speed Limit</h3>
+                <p id="speed-limit-modal-road">Road name</p>
+                <div class="speed-limit-options" id="speed-limit-options">
+                    <button class="speed-option" data-speed="15">15</button>
+                    <button class="speed-option" data-speed="20">20</button>
+                    <button class="speed-option" data-speed="25">25</button>
+                    <button class="speed-option" data-speed="30">30</button>
+                    <button class="speed-option" data-speed="35">35</button>
+                    <button class="speed-option" data-speed="45">45</button>
+                    <button class="speed-option" data-speed="55">55</button>
+                </div>
+                <p class="speed-limit-modal-hint">Tap a speed limit (mph) to assign to this road</p>
+                <button id="speed-limit-modal-cancel" class="btn btn-sm btn-full" style="margin-top: 10px;">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
             </div>
         </div>
 

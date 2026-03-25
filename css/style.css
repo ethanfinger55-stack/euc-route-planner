@@ -1045,6 +1045,141 @@ input[type="checkbox"] {
     background: var(--accent-red);
 }
 
+/* ===== Home Address ===== */
+.home-address-display {
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+}
+
+.home-address-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.home-address-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.home-address-actions .btn {
+    flex: 1;
+}
+
+/* ===== Speedometer in Nav HUD ===== */
+.nav-hud-speedometer {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    padding: 4px 12px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 2px solid var(--accent-green);
+    transition: border-color 0.3s, background 0.3s;
+}
+
+.nav-hud-speedometer.over-limit {
+    border-color: var(--accent-red);
+    background: rgba(231, 76, 60, 0.2);
+    animation: speedFlash 0.6s ease infinite alternate;
+}
+
+@keyframes speedFlash {
+    from { background: rgba(231, 76, 60, 0.15); }
+    to { background: rgba(231, 76, 60, 0.35); }
+}
+
+.speedometer-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.speedometer-unit {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* ===== Speed Limit Update Modal ===== */
+.speed-limit-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
+.speed-limit-modal-content {
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 24px;
+    width: 90%;
+    max-width: 340px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.speed-limit-modal-content h3 {
+    font-size: 18px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.speed-limit-modal-content p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.speed-limit-modal-hint {
+    font-size: 12px !important;
+    color: var(--text-muted) !important;
+    margin-top: 12px !important;
+}
+
+.speed-limit-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.speed-option {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 3px solid var(--accent-red);
+    background: white;
+    color: #333;
+    font-size: 18px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.speed-option:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px rgba(231, 76, 60, 0.4);
+}
+
+.speed-option:active {
+    transform: scale(0.95);
+}
+
 /* ===== Close Sidebar Button (mobile) ===== */
 .btn-close-sidebar {
     display: none;
@@ -1421,6 +1556,48 @@ input[type="checkbox"] {
     .usage-row {
         font-size: 13px;
         padding: 5px 0;
+    }
+
+    /* ----- Home address on mobile ----- */
+    .home-address-actions .btn {
+        min-height: 44px;
+        font-size: 14px;
+    }
+
+    .home-address-display {
+        padding: 10px 14px;
+    }
+
+    .home-address-text {
+        font-size: 14px;
+    }
+
+    /* ----- Clear all button ----- */
+    #clear-all-btn {
+        min-height: 44px;
+        font-size: 14px;
+    }
+
+    /* ----- Speedometer mobile ----- */
+    .speedometer-value {
+        font-size: 26px;
+    }
+
+    .nav-hud-speedometer {
+        padding: 6px 14px;
+        border-radius: 12px;
+    }
+
+    /* ----- Speed limit modal mobile ----- */
+    .speed-limit-modal-content {
+        width: 92%;
+        padding: 20px 16px;
+    }
+
+    .speed-option {
+        width: 52px;
+        height: 52px;
+        font-size: 16px;
     }
 
     /* ----- Speed markers smaller on mobile ----- */
