@@ -121,6 +121,16 @@
     let activeInput = null; // which input is being geocoded
     let debounceTimer = null;
 
+    // Navigation state
+    let navActive = false;
+    let navWatchId = null;
+    let navPositionMarker = null;
+    let navRouteCoords = null;
+    let navSteps = null;
+    let navSpeedData = null;
+    let navCurrentStepIdx = 0;
+    let navTotalDistanceMi = 0;
+
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
     const apiKeyInput = $('#api-key-input');
@@ -476,6 +486,24 @@
             // Fit map to route
             const bounds = L.latLngBounds(routeCoords);
             map.fitBounds(bounds, { padding: [80, 80] });
+
+            // Step 7: Save route to history
+            saveRouteToHistory(
+                startInput.value,
+                endInput.value,
+                startCoords,
+                endCoords
+            );
+
+            // Store data for navigation mode
+            navRouteCoords = routeCoords;
+            navSteps = steps;
+            navSpeedData = speedData;
+            navTotalDistanceMi = routeData.segments[0].distance;
+
+            // Show Start Navigation button
+            const navBtn = $('#start-nav-btn');
+            if (navBtn) navBtn.classList.remove('hidden');
 
             speedLegend.classList.remove('hidden');
             hideLoading();
@@ -882,6 +910,391 @@
         findRouteBtn.disabled = false;
     }
 
+    // ===== Route History =====
+    const MAX_SAVED_ROUTES = 10;
+
+    function loadRouteHistory() {
+        try {
+            const raw = localStorage.getItem('euc_route_history');
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) { return []; }
+    }
+
+    function saveRouteToHistory(startLabel, endLabel, startC, endC) {
+        const history = loadRouteHistory();
+
+        // Don't save duplicates (same start+end text)
+        const isDuplicate = history.some(
+            r => r.startLabel === startLabel && r.endLabel === endLabel
+        );
+        if (isDuplicate) return;
+
+        history.unshift({
+            startLabel,
+            endLabel,
+            startCoords: startC,
+            endCoords: endC,
+            timestamp: Date.now()
+        });
+
+        // Keep only the most recent routes
+        if (history.length > MAX_SAVED_ROUTES) history.length = MAX_SAVED_ROUTES;
+
+        localStorage.setItem('euc_route_history', JSON.stringify(history));
+        renderRouteHistory();
+    }
+
+    function deleteRouteFromHistory(index) {
+        const history = loadRouteHistory();
+        history.splice(index, 1);
+        localStorage.setItem('euc_route_history', JSON.stringify(history));
+        renderRouteHistory();
+    }
+
+    function clearRouteHistory() {
+        localStorage.removeItem('euc_route_history');
+        renderRouteHistory();
+    }
+
+    function renderRouteHistory() {
+        const container = $('#saved-routes-list');
+        const clearBtn = $('#clear-history-btn');
+        if (!container) return;
+
+        const history = loadRouteHistory();
+
+        if (history.length === 0) {
+            container.innerHTML = '<p class="no-saved-routes">No saved routes yet. Routes are saved automatically after searching.</p>';
+            if (clearBtn) clearBtn.classList.add('hidden');
+            return;
+        }
+
+        if (clearBtn) clearBtn.classList.remove('hidden');
+        container.innerHTML = '';
+
+        history.forEach((route, idx) => {
+            const ago = getTimeAgo(route.timestamp);
+            const item = document.createElement('div');
+            item.className = 'saved-route-item';
+            item.title = `${route.startLabel} → ${route.endLabel}`;
+            item.innerHTML = `
+                <span class="saved-route-icon"><i class="fas fa-route"></i></span>
+                <div class="saved-route-info">
+                    <div class="saved-route-start"><i class="fas fa-circle"></i> ${escapeHtml(route.startLabel)}</div>
+                    <div class="saved-route-end"><i class="fas fa-circle"></i> ${escapeHtml(route.endLabel)}</div>
+                    <div class="saved-route-meta">${ago}</div>
+                </div>
+                <button class="saved-route-delete" title="Remove"><i class="fas fa-times"></i></button>
+            `;
+
+            // Click to load this route
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.saved-route-delete')) return;
+                loadSavedRoute(route);
+            });
+
+            // Delete button
+            item.querySelector('.saved-route-delete').addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteRouteFromHistory(idx);
+            });
+
+            container.appendChild(item);
+        });
+    }
+
+    function loadSavedRoute(route) {
+        startCoords = route.startCoords;
+        endCoords = route.endCoords;
+        startInput.value = route.startLabel;
+        endInput.value = route.endLabel;
+        placeStartMarker(startCoords);
+        placeEndMarker(endCoords);
+        const bounds = L.latLngBounds([startCoords, endCoords]);
+        map.fitBounds(bounds, { padding: [60, 60] });
+    }
+
+    function getTimeAgo(timestamp) {
+        const diff = Date.now() - timestamp;
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ===== Turn-by-Turn Navigation Mode =====
+    const NAV_STEP_THRESHOLD_KM = 0.04;  // ~40m to snap to current step
+    const NAV_ARRIVAL_THRESHOLD_KM = 0.05; // ~50m to consider arrived
+    const NAV_TURN_ICONS = {
+        0: 'fa-arrow-up',         // straight
+        1: 'fa-arrow-up',         // straight
+        2: 'fa-arrow-left',       // sharp left
+        3: 'fa-arrow-left',       // left
+        4: 'fa-arrow-left',       // slight left
+        5: 'fa-arrow-right',      // slight right
+        6: 'fa-arrow-right',      // right
+        7: 'fa-arrow-right',      // sharp right
+        8: 'fa-undo',             // u-turn
+        9: 'fa-flag-checkered',   // arrive
+        10: 'fa-arrow-up',        // depart
+        11: 'fa-circle-notch',    // roundabout
+        12: 'fa-circle-notch',    // exit roundabout
+    };
+
+    function startNavigation() {
+        if (!navRouteCoords || !navSteps) {
+            alert('Please find a route first.');
+            return;
+        }
+        if (!navigator.geolocation) {
+            alert('Geolocation is required for navigation mode.');
+            return;
+        }
+
+        navActive = true;
+        navCurrentStepIdx = 0;
+
+        // Collapse sidebar on mobile for full map view
+        if (window.innerWidth <= 768 && !sidebar.classList.contains('collapsed')) {
+            toggleSidebar();
+        }
+
+        // Show navigation HUD
+        const hud = $('#nav-hud');
+        if (hud) hud.classList.remove('hidden');
+
+        // Hide speed legend during nav (HUD shows speed)
+        speedLegend.classList.add('hidden');
+
+        // Highlight first step
+        updateNavStepHighlight();
+
+        // Update HUD with first step info
+        updateNavHUD(navSteps[0], 0);
+
+        // Start watching GPS position
+        navWatchId = navigator.geolocation.watchPosition(
+            onNavPositionUpdate,
+            onNavPositionError,
+            {
+                enableHighAccuracy: true,
+                maximumAge: 2000,
+                timeout: 10000
+            }
+        );
+    }
+
+    function stopNavigation() {
+        navActive = false;
+
+        if (navWatchId != null) {
+            navigator.geolocation.clearWatch(navWatchId);
+            navWatchId = null;
+        }
+
+        // Remove position marker
+        if (navPositionMarker) {
+            map.removeLayer(navPositionMarker);
+            navPositionMarker = null;
+        }
+
+        // Hide HUD
+        const hud = $('#nav-hud');
+        if (hud) hud.classList.add('hidden');
+
+        // Show legend again
+        speedLegend.classList.remove('hidden');
+
+        // Remove step highlights
+        document.querySelectorAll('.direction-step').forEach(el => {
+            el.classList.remove('active-step', 'completed-step');
+        });
+
+        // Fit back to full route
+        if (navRouteCoords && navRouteCoords.length > 0) {
+            const bounds = L.latLngBounds(navRouteCoords);
+            map.fitBounds(bounds, { padding: [80, 80] });
+        }
+    }
+
+    function onNavPositionUpdate(position) {
+        if (!navActive) return;
+
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+        const userCoord = [userLat, userLng];
+
+        // Update / create position marker
+        if (navPositionMarker) {
+            navPositionMarker.setLatLng(userCoord);
+        } else {
+            navPositionMarker = L.marker(userCoord, {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div class="nav-position-marker"><div class="nav-position-pulse"></div></div>',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                }),
+                zIndexOffset: 1000
+            }).addTo(map);
+        }
+
+        // Center map on user
+        map.setView(userCoord, Math.max(map.getZoom(), 16));
+
+        // Determine which step we're closest to
+        findCurrentStep(userCoord);
+
+        // Update HUD
+        const step = navSteps[navCurrentStepIdx];
+        if (step) {
+            const stepStartIdx = step.way_points[0];
+            const stepCoord = navRouteCoords[stepStartIdx];
+            const distToStepKm = haversineDistance(userCoord, stepCoord);
+            updateNavHUD(step, distToStepKm);
+        }
+
+        // Check arrival at destination
+        const lastCoord = navRouteCoords[navRouteCoords.length - 1];
+        const distToEnd = haversineDistance(userCoord, lastCoord);
+        if (distToEnd < NAV_ARRIVAL_THRESHOLD_KM) {
+            onNavArrival();
+        }
+    }
+
+    function onNavPositionError(err) {
+        console.warn('Nav GPS error:', err);
+        if (err.code === err.PERMISSION_DENIED) {
+            alert('Location permission denied. Navigation requires GPS access.');
+            stopNavigation();
+        }
+    }
+
+    function findCurrentStep(userCoord) {
+        // Walk through steps and find which one we're currently on
+        // Skip already-passed steps
+        let bestIdx = navCurrentStepIdx;
+        let bestDist = Infinity;
+
+        for (let i = navCurrentStepIdx; i < navSteps.length; i++) {
+            const step = navSteps[i];
+            // Check distance to the step's start waypoint
+            const wpStart = step.way_points[0];
+            const wpEnd = step.way_points[1];
+
+            // Check distance to each polyline point in this step's segment
+            for (let j = wpStart; j <= Math.min(wpEnd, navRouteCoords.length - 1); j++) {
+                const dist = haversineDistance(userCoord, navRouteCoords[j]);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = i;
+                }
+            }
+
+            // Stop searching too far ahead
+            if (i > navCurrentStepIdx + 3) break;
+        }
+
+        if (bestIdx !== navCurrentStepIdx) {
+            navCurrentStepIdx = bestIdx;
+            updateNavStepHighlight();
+        }
+    }
+
+    function updateNavStepHighlight() {
+        const stepEls = document.querySelectorAll('.direction-step');
+        stepEls.forEach((el, idx) => {
+            el.classList.remove('active-step', 'completed-step');
+            if (idx < navCurrentStepIdx) {
+                el.classList.add('completed-step');
+            } else if (idx === navCurrentStepIdx) {
+                el.classList.add('active-step');
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    }
+
+    function updateNavHUD(step, distToStepKm) {
+        const iconEl = $('#nav-hud-icon');
+        const distEl = $('#nav-hud-distance');
+        const instrEl = $('#nav-hud-instruction');
+        const speedEl = $('#nav-hud-speed-val');
+        const etaEl = $('#nav-hud-eta');
+        const remainEl = $('#nav-hud-remaining');
+        const upcomingEl = $('#nav-hud-upcoming');
+
+        // Turn icon
+        const iconClass = NAV_TURN_ICONS[step.type] || 'fa-arrow-up';
+        if (iconEl) iconEl.innerHTML = `<i class="fas ${iconClass}"></i>`;
+
+        // Distance to next turn
+        if (distEl) {
+            const distMi = distToStepKm * 0.621371;
+            if (distMi < 0.1) {
+                const ft = Math.round(distMi * 5280);
+                distEl.textContent = `${ft} ft`;
+            } else {
+                distEl.textContent = `${distMi.toFixed(1)} mi`;
+            }
+        }
+
+        // Instruction text
+        if (instrEl) instrEl.textContent = step.instruction;
+
+        // Speed limit for current segment
+        if (speedEl && navSpeedData) {
+            const wpIdx = Math.min(step.way_points[0], navSpeedData.length - 1);
+            const spd = navSpeedData[wpIdx] ? navSpeedData[wpIdx].mph : null;
+            speedEl.textContent = spd != null ? spd : '—';
+        }
+
+        // Remaining distance and ETA
+        let remainingMi = 0;
+        for (let i = navCurrentStepIdx; i < navSteps.length; i++) {
+            remainingMi += navSteps[i].distance;
+        }
+        if (remainEl) remainEl.textContent = `${remainingMi.toFixed(1)} mi left`;
+        if (etaEl) {
+            const etaMin = Math.round((remainingMi / EUC_AVG_SPEED_MPH) * 60);
+            etaEl.textContent = etaMin > 0 ? `~${etaMin} min` : '< 1 min';
+        }
+
+        // Upcoming step preview
+        if (upcomingEl) {
+            const nextIdx = navCurrentStepIdx + 1;
+            if (nextIdx < navSteps.length) {
+                const next = navSteps[nextIdx];
+                const nextIcon = NAV_TURN_ICONS[next.type] || 'fa-arrow-up';
+                upcomingEl.innerHTML = `
+                    <div class="upcoming-label">Then</div>
+                    <div class="upcoming-text"><i class="fas ${nextIcon}"></i> ${escapeHtml(next.instruction)}</div>
+                `;
+            } else {
+                upcomingEl.innerHTML = '';
+            }
+        }
+    }
+
+    function onNavArrival() {
+        stopNavigation();
+        // Brief toast celebration
+        const toast = document.createElement('div');
+        toast.className = 'rate-limit-warning';
+        toast.style.background = '#2ecc71';
+        toast.textContent = '\uD83C\uDFC1 You have arrived at your destination!';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
     // ===== Rate Limit Warning Toast =====
     function showRateLimitWarning(msg) {
         // Remove existing warning if any
@@ -929,5 +1342,26 @@
     document.addEventListener('DOMContentLoaded', () => {
         init();
         updateUsageDisplay();
+        renderRouteHistory();
+
+        // Clear history button
+        const clearHistBtn = $('#clear-history-btn');
+        if (clearHistBtn) {
+            clearHistBtn.addEventListener('click', () => {
+                if (confirm('Clear all saved routes?')) clearRouteHistory();
+            });
+        }
+
+        // Navigation buttons
+        const startNavBtn = $('#start-nav-btn');
+        if (startNavBtn) {
+            startNavBtn.addEventListener('click', startNavigation);
+        }
+        const stopNavBtn = $('#stop-nav-btn');
+        if (stopNavBtn) {
+            stopNavBtn.addEventListener('click', () => {
+                if (confirm('End navigation?')) stopNavigation();
+            });
+        }
     });
 })();

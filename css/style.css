@@ -540,6 +540,303 @@ input[type="checkbox"] {
     color: var(--text-secondary);
 }
 
+/* ===== Navigation Button ===== */
+.btn-nav {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 12px 20px;
+    font-size: 15px;
+}
+
+.btn-nav:hover {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+}
+
+.btn-stop-nav {
+    background: var(--accent-red);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 6px 16px;
+    font-size: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+.btn-stop-nav:hover {
+    background: #c0392b;
+}
+
+/* ===== Navigation HUD ===== */
+.nav-hud {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1500;
+    background: var(--bg-sidebar);
+    border-top: 2px solid var(--accent-blue);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.3s ease;
+    user-select: none;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.nav-hud-top {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    gap: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nav-hud-direction {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-hud-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: var(--accent-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: white;
+    flex-shrink: 0;
+}
+
+.nav-hud-detail {
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-hud-distance {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.1;
+}
+
+.nav-hud-instruction {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-hud-speed-limit {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 4px solid #e74c3c;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.nav-hud-speed-limit span {
+    font-size: 20px;
+    font-weight: 800;
+    color: #333;
+    line-height: 1;
+}
+
+.nav-hud-speed-limit small {
+    font-size: 8px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.nav-hud-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    gap: 16px;
+}
+
+.nav-hud-eta,
+.nav-hud-remaining {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.nav-hud-eta i,
+.nav-hud-remaining i {
+    color: var(--accent-blue);
+    font-size: 12px;
+}
+
+.nav-hud-upcoming {
+    padding: 0 20px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.nav-hud-upcoming:empty {
+    display: none;
+}
+
+.nav-hud-upcoming .upcoming-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.nav-hud-upcoming .upcoming-text {
+    color: var(--text-secondary);
+}
+
+/* Position marker for live GPS */
+.nav-position-marker {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    border: 3px solid white;
+    box-shadow: 0 0 12px rgba(74, 144, 217, 0.6), 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.nav-position-pulse {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(74, 144, 217, 0.2);
+    position: absolute;
+    top: -11px;
+    left: -11px;
+    animation: navPulse 2s ease infinite;
+}
+
+@keyframes navPulse {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+/* Active navigation step highlight */
+.direction-step.active-step {
+    border: 1px solid var(--accent-blue);
+    background: rgba(74, 144, 217, 0.15);
+}
+
+.direction-step.completed-step {
+    opacity: 0.4;
+}
+
+/* ===== Saved Routes ===== */
+.saved-routes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.no-saved-routes {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 8px 0;
+}
+
+.saved-route-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+}
+
+.saved-route-item:hover {
+    background: var(--border-color);
+    border-color: var(--accent-blue);
+}
+
+.saved-route-icon {
+    color: var(--accent-blue);
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.saved-route-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.saved-route-start,
+.saved-route-end {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.saved-route-start i {
+    color: var(--accent-green);
+    font-size: 8px;
+}
+
+.saved-route-end i {
+    color: var(--accent-red);
+    font-size: 8px;
+}
+
+.saved-route-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.saved-route-delete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 12px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+
+.saved-route-delete:hover {
+    color: var(--accent-red);
+    background: rgba(231, 76, 60, 0.15);
+}
+
 /* ===== API Usage Panel ===== */
 .api-usage {
     margin-top: 10px;

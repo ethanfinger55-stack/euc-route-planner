@@ -70,6 +70,17 @@
                 <div id="suggestions-dropdown" class="suggestions-dropdown hidden"></div>
             </div>
 
+            <!-- Saved Routes -->
+            <div class="sidebar-section">
+                <h3><i class="fas fa-history"></i> Recent Routes</h3>
+                <div id="saved-routes-list" class="saved-routes-list">
+                    <p class="no-saved-routes">No saved routes yet. Routes are saved automatically after searching.</p>
+                </div>
+                <button id="clear-history-btn" class="btn btn-sm btn-full hidden" style="margin-top: 8px;">
+                    <i class="fas fa-trash-alt"></i> Clear History
+                </button>
+            </div>
+
             <!-- Route Preferences -->
             <div class="sidebar-section">
                 <h3><i class="fas fa-sliders-h"></i> Route Preferences</h3>
@@ -127,6 +138,11 @@
                 <!-- Turn-by-turn with speed limits -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-list-ol"></i> Turn-by-Turn Directions</h4>
                 <div id="directions-list" class="directions-list"></div>
+
+                <!-- Start Navigation Button -->
+                <button id="start-nav-btn" class="btn btn-nav btn-full" style="margin-top: 16px;">
+                    <i class="fas fa-location-arrow"></i> Start Navigation
+                </button>
             </div>
         </aside>
 
@@ -147,6 +163,38 @@
             <div class="legend-item"><span class="legend-color" style="background: #e67e22;"></span> 40–45 mph</div>
             <div class="legend-item"><span class="legend-color" style="background: #e74c3c;"></span> 50+ mph</div>
             <div class="legend-item"><span class="legend-color" style="background: #95a5a6;"></span> Unknown</div>
+        </div>
+
+        <!-- Navigation HUD -->
+        <div id="nav-hud" class="nav-hud hidden">
+            <div class="nav-hud-top">
+                <div class="nav-hud-direction">
+                    <div class="nav-hud-icon" id="nav-hud-icon"><i class="fas fa-arrow-up"></i></div>
+                    <div class="nav-hud-detail">
+                        <div class="nav-hud-distance" id="nav-hud-distance">—</div>
+                        <div class="nav-hud-instruction" id="nav-hud-instruction">Calculating route...</div>
+                    </div>
+                </div>
+                <div class="nav-hud-speed-limit" id="nav-hud-speed">
+                    <span id="nav-hud-speed-val">—</span>
+                    <small>mph</small>
+                </div>
+            </div>
+            <div class="nav-hud-bottom">
+                <div class="nav-hud-eta">
+                    <i class="fas fa-clock"></i>
+                    <span id="nav-hud-eta">—</span>
+                </div>
+                <div class="nav-hud-remaining">
+                    <i class="fas fa-road"></i>
+                    <span id="nav-hud-remaining">—</span>
+                </div>
+                <button id="stop-nav-btn" class="btn btn-stop-nav">
+                    <i class="fas fa-stop"></i> End
+                </button>
+            </div>
+            <!-- Upcoming step preview -->
+            <div class="nav-hud-upcoming" id="nav-hud-upcoming"></div>
         </div>
 
         <!-- Loading Overlay -->
