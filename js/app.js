@@ -489,18 +489,8 @@
 
     // ===== Fetch Route from OpenRouteService =====
     async function fetchRoute() {
-        const avoidHighways = $('#avoid-highways').checked;
-        const avoidToll = $('#avoid-toll').checked;
         const preferResidential = $('#prefer-residential').checked;
 
-        // Build avoidance features
-        const avoidFeatures = [];
-        if (avoidHighways) avoidFeatures.push('highways');
-        if (avoidToll) avoidFeatures.push('tollways');
-
-        // Use cycling profile for quieter roads, or driving for road speed data
-        // We use foot-walking or cycling as a base, but driving gives us road speed limits
-        // Strategy: request driving-car route but avoid highways for EUC-suitable roads
         const body = {
             coordinates: [
                 [startCoords[1], startCoords[0]], // ORS uses [lng, lat]
@@ -510,37 +500,65 @@
             units: 'mi',
             language: 'en',
             instructions: true,
-            geometry: true
+            geometry: true,
+            options: {
+                avoid_features: ['ferries', 'steps']
+            }
         };
 
-        if (avoidFeatures.length > 0) {
-            body.options = {
-                avoid_features: avoidFeatures
-            };
+        // Try cycling-regular first (best for EUC), fall back to foot-walking
+        const profiles = ['cycling-regular', 'foot-walking'];
+        let lastError = '';
+
+        for (const profile of profiles) {
+            const resp = await fetch(`${ORS_BASE}/v2/directions/${profile}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': apiKey,
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Accept': 'application/json, application/geo+json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (resp.status === 429) {
+                throw new Error('Directions API rate limit exceeded. Please wait a moment and try again.');
+            }
+
+            if (resp.ok) {
+                rateLimiter.record('directions');
+                const data = await resp.json();
+                if (data.routes && data.routes.length > 0) return data.routes[0];
+            } else {
+                lastError = await resp.text();
+                console.warn(`ORS ${profile} failed:`, lastError);
+
+                // If the avoid features caused the error, retry without them
+                if (resp.status === 400) {
+                    delete body.options;
+                    const retryResp = await fetch(`${ORS_BASE}/v2/directions/${profile}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': apiKey,
+                            'Content-Type': 'application/json; charset=utf-8',
+                            'Accept': 'application/json, application/geo+json'
+                        },
+                        body: JSON.stringify(body)
+                    });
+                    if (retryResp.ok) {
+                        rateLimiter.record('directions');
+                        const retryData = await retryResp.json();
+                        if (retryData.routes && retryData.routes.length > 0) return retryData.routes[0];
+                    } else {
+                        lastError = await retryResp.text();
+                        console.warn(`ORS ${profile} retry failed:`, lastError);
+                    }
+                }
+            }
         }
 
-        const resp = await fetch(`${ORS_BASE}/v2/directions/cycling-regular`, {
-            method: 'POST',
-            headers: {
-                'Authorization': apiKey,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-        });
-
-        if (resp.status === 429) {
-            throw new Error('Directions API rate limit exceeded. Please wait a moment and try again.');
-        }
-        if (!resp.ok) {
-            const errText = await resp.text();
-            console.error('ORS error:', errText);
-            throw new Error('Route request failed. Check your API key and locations.');
-        }
-
-        rateLimiter.record('directions');
-        const data = await resp.json();
-        if (!data.routes || data.routes.length === 0) return null;
-        return data.routes[0];
+        console.error('All ORS profiles failed. Last error:', lastError);
+        throw new Error('Route request failed. Check your API key and locations.');
     }
 
     // ===== Decode ORS Polyline (encoded polyline format) =====
