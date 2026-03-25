@@ -147,12 +147,19 @@
     const speedLegend = $('#speed-legend');
     const sidebar = $('#sidebar');
     const toggleSidebarBtn = $('#toggle-sidebar');
+    const closeSidebarBtn = $('#close-sidebar-btn');
 
     // ===== Initialization =====
     function init() {
         initMap();
         loadApiKey();
         bindEvents();
+
+        // On mobile, start with sidebar collapsed so map is visible
+        if (window.innerWidth <= 768) {
+            sidebar.classList.add('collapsed');
+            toggleSidebarBtn.classList.add('collapsed');
+        }
     }
 
     function initMap() {
@@ -213,6 +220,15 @@
         findRouteBtn.addEventListener('click', findRoute);
 
         toggleSidebarBtn.addEventListener('click', toggleSidebar);
+
+        // Mobile close sidebar button
+        if (closeSidebarBtn) {
+            closeSidebarBtn.addEventListener('click', () => {
+                if (!sidebar.classList.contains('collapsed')) {
+                    toggleSidebar();
+                }
+            });
+        }
 
         // Allow clicking on map to set start/end
         map.on('click', handleMapClick);
@@ -825,6 +841,11 @@
         buildDirections(steps, speedData, routeData);
 
         routeInfoPanel.classList.remove('hidden');
+
+        // On mobile, auto-collapse sidebar to show map with route
+        if (window.innerWidth <= 768 && !sidebar.classList.contains('collapsed')) {
+            setTimeout(() => toggleSidebar(), 600);
+        }
     }
 
     function buildSpeedBreakdown(speedData) {

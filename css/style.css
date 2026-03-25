@@ -947,42 +947,406 @@ input[type="checkbox"] {
     background: var(--accent-red);
 }
 
-/* ===== Responsive ===== */
+/* ===== Close Sidebar Button (mobile) ===== */
+.btn-close-sidebar {
+    display: none;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.btn-close-sidebar:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* ===== Responsive — Mobile (Pixel 8 Pro & similar) ===== */
 @media (max-width: 768px) {
     :root {
         --sidebar-width: 100vw;
     }
 
+    body {
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    /* ----- Sidebar as full-screen overlay drawer ----- */
     .sidebar {
-        position: absolute;
+        position: fixed;
         top: 0;
         left: 0;
+        width: 100vw;
         height: 100vh;
+        height: 100dvh;
+        z-index: 2000;
+        padding: 20px 16px;
+        padding-top: calc(20px + env(safe-area-inset-top));
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        gap: 2px;
+        transform: translateX(0);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                    opacity 0.3s ease;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
+    .sidebar.collapsed {
+        transform: translateX(-100%);
+        margin-left: 0;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .sidebar-header {
+        position: relative;
+        padding-right: 48px;
+    }
+
+    .btn-close-sidebar {
+        display: flex;
+    }
+
+    /* ----- Toggle becomes floating hamburger ----- */
     .toggle-sidebar {
+        position: fixed;
         left: auto;
-        right: 0;
-        top: 10px;
+        right: 12px;
+        top: calc(12px + env(safe-area-inset-top));
         transform: none;
-        border-radius: var(--radius) 0 0 var(--radius);
-        border-right: none;
-        border-left: 1px solid var(--border-color);
-    }
-
-    .sidebar.collapsed + .toggle-sidebar {
-        left: auto;
-        right: 0;
+        z-index: 1800;
+        background: var(--bg-sidebar);
+        border: 1px solid var(--border-color);
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+        padding: 0;
     }
 
     .toggle-sidebar.collapsed {
         left: auto;
+        right: 12px;
     }
 
+    .toggle-sidebar i {
+        transform: none !important;
+        font-size: 16px;
+    }
+
+    .toggle-sidebar.collapsed i::before {
+        content: "\f0c9"; /* hamburger icon */
+    }
+
+    /* ----- Bigger touch targets ----- */
+    .input-group input {
+        padding: 14px 14px;
+        font-size: 16px;
+        min-height: 48px;
+        border-radius: 10px;
+    }
+
+    .btn-sm {
+        min-width: 48px;
+        min-height: 48px;
+        padding: 12px;
+        font-size: 16px;
+        border-radius: 10px;
+    }
+
+    .btn-primary {
+        padding: 16px 24px;
+        font-size: 17px;
+        border-radius: 12px;
+        min-height: 52px;
+    }
+
+    .btn-nav {
+        padding: 16px 24px;
+        font-size: 17px;
+        border-radius: 12px;
+        min-height: 52px;
+    }
+
+    /* ----- Section labels bigger ----- */
+    .sidebar-section h3 {
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+
+    .sidebar-section label {
+        font-size: 15px;
+        margin-bottom: 8px;
+    }
+
+    .sidebar-section h4 {
+        font-size: 14px;
+    }
+
+    /* ----- Preference items ----- */
+    .preference-item label {
+        font-size: 15px;
+        padding: 4px 0;
+    }
+
+    .preference-item select {
+        padding: 12px 14px;
+        font-size: 15px;
+        min-height: 48px;
+        border-radius: 10px;
+    }
+
+    input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+    }
+
+    /* ----- Route stats in 2-column grid, bigger ----- */
+    .route-stats {
+        gap: 8px;
+    }
+
+    .stat {
+        padding: 14px 10px;
+        border-radius: 10px;
+    }
+
+    .stat-value {
+        font-size: 20px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+    }
+
+    /* ----- Directions list ----- */
+    .directions-list {
+        max-height: 250px;
+    }
+
+    .direction-step {
+        padding: 12px;
+        font-size: 14px;
+        border-radius: 10px;
+    }
+
+    .direction-step-num {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+
+    /* ----- Saved routes ----- */
+    .saved-route-item {
+        padding: 12px;
+        border-radius: 10px;
+        min-height: 48px;
+    }
+
+    .saved-route-start,
+    .saved-route-end {
+        font-size: 13px;
+    }
+
+    .saved-route-meta {
+        font-size: 11px;
+    }
+
+    .saved-route-delete {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* ----- Suggestions dropdown ----- */
+    .suggestions-dropdown {
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        top: auto;
+        max-height: 40vh;
+        border-radius: 12px;
+        z-index: 2200;
+    }
+
+    .suggestion-item {
+        padding: 14px 16px;
+        font-size: 15px;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* ----- Speed legend compact on mobile ----- */
     .speed-legend {
-        bottom: 10px;
-        right: 10px;
+        bottom: 12px;
+        right: 12px;
         font-size: 11px;
         padding: 8px 12px;
+        border-radius: 10px;
+        max-width: 160px;
+    }
+
+    .speed-legend h4 {
+        font-size: 11px;
+        margin-bottom: 4px;
+    }
+
+    .legend-item {
+        font-size: 11px;
+        gap: 6px;
+        margin-bottom: 2px;
+    }
+
+    .legend-color {
+        width: 16px;
+        height: 8px;
+    }
+
+    /* ----- Navigation HUD mobile-optimized ----- */
+    .nav-hud {
+        border-radius: 16px 16px 0 0;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .nav-hud-top {
+        padding: 18px 16px;
+        gap: 12px;
+    }
+
+    .nav-hud-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        font-size: 26px;
+    }
+
+    .nav-hud-distance {
+        font-size: 30px;
+    }
+
+    .nav-hud-instruction {
+        font-size: 15px;
+        white-space: normal;
+        -webkit-line-clamp: 2;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .nav-hud-speed-limit {
+        width: 62px;
+        height: 62px;
+        border-width: 5px;
+    }
+
+    .nav-hud-speed-limit span {
+        font-size: 22px;
+    }
+
+    .nav-hud-bottom {
+        padding: 12px 16px;
+        gap: 10px;
+    }
+
+    .nav-hud-eta,
+    .nav-hud-remaining {
+        font-size: 14px;
+    }
+
+    .btn-stop-nav {
+        padding: 10px 20px;
+        font-size: 15px;
+        min-height: 44px;
+        border-radius: 10px;
+    }
+
+    .nav-hud-upcoming {
+        padding: 0 16px 14px;
+        font-size: 13px;
+    }
+
+    /* ----- API section ----- */
+    .api-usage {
+        border-radius: 10px;
+    }
+
+    .usage-row {
+        font-size: 13px;
+        padding: 5px 0;
+    }
+
+    /* ----- Speed markers smaller on mobile ----- */
+    .speed-limit-marker {
+        width: 30px;
+        height: 30px;
+        border-width: 2.5px;
+        font-size: 10px;
+    }
+
+    /* ----- Loading overlay ----- */
+    .loading-spinner i {
+        font-size: 48px;
+    }
+
+    .loading-spinner p {
+        font-size: 18px;
+    }
+
+    /* ----- Rate limit warning ----- */
+    .rate-limit-warning {
+        top: calc(12px + env(safe-area-inset-top));
+        left: 12px;
+        right: 12px;
+        transform: none;
+        text-align: center;
+        border-radius: 12px;
+        font-size: 14px;
+        padding: 12px 16px;
+    }
+
+    @keyframes fadeInOut {
+        0% { opacity: 0; transform: translateY(-10px); }
+        10% { opacity: 1; transform: translateY(0); }
+        80% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+}
+
+/* ===== Very small screens (iPhone SE, etc.) ===== */
+@media (max-width: 375px) {
+    .sidebar {
+        padding: 16px 12px;
+    }
+
+    .nav-hud-distance {
+        font-size: 24px;
+    }
+
+    .nav-hud-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 22px;
+    }
+
+    .stat-value {
+        font-size: 16px;
     }
 }
