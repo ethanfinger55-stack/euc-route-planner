@@ -281,6 +281,51 @@
             </div>
         </div>
 
+        <!-- Ride Summary Overlay -->
+        <div id="ride-summary" class="ride-summary-overlay hidden">
+            <div class="ride-summary-card">
+                <button id="ride-summary-close" class="ride-summary-close" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="ride-summary-header">
+                    <i class="fas fa-flag-checkered"></i>
+                    <h2>Ride Complete!</h2>
+                </div>
+                <div class="ride-summary-stats">
+                    <div class="ride-stat">
+                        <i class="fas fa-road"></i>
+                        <span class="ride-stat-value" id="ride-stat-distance">—</span>
+                        <span class="ride-stat-label">Distance</span>
+                    </div>
+                    <div class="ride-stat">
+                        <i class="fas fa-clock"></i>
+                        <span class="ride-stat-value" id="ride-stat-duration">—</span>
+                        <span class="ride-stat-label">Duration</span>
+                    </div>
+                    <div class="ride-stat">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span class="ride-stat-value" id="ride-stat-avg-speed">—</span>
+                        <span class="ride-stat-label">Avg Speed</span>
+                    </div>
+                    <div class="ride-stat">
+                        <i class="fas fa-bolt"></i>
+                        <span class="ride-stat-value" id="ride-stat-top-speed">—</span>
+                        <span class="ride-stat-label">Top Speed</span>
+                    </div>
+                    <div class="ride-stat">
+                        <i class="fas fa-mountain"></i>
+                        <span class="ride-stat-value" id="ride-stat-elevation">—</span>
+                        <span class="ride-stat-label">Elevation Gain</span>
+                    </div>
+                    <div class="ride-stat">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span class="ride-stat-value" id="ride-stat-max-speed-road">—</span>
+                        <span class="ride-stat-label">Max Road Speed</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Speed Limit Update Modal -->
         <div id="speed-limit-modal" class="speed-limit-modal hidden">
             <div class="speed-limit-modal-content">

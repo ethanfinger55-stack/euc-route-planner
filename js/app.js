@@ -135,6 +135,13 @@
     let navLastPosition = null;
     let navLastTimestamp = null;
 
+    // Ride tracking state
+    let rideStartTime = null;
+    let rideSpeedLog = [];      // array of speed readings (mph)
+    let ridePositionLog = [];   // array of [lat, lng] for distance calc
+    let rideTopSpeed = 0;
+    let rideMaxRoadSpeed = null;
+
     // Manual speed limit overrides (keyed by "lat,lon" of route point)
     let manualSpeedOverrides = {};
     let pendingSpeedLimitCoordIdx = null; // index into route coords for the modal
@@ -1742,6 +1749,13 @@
         navActive = true;
         navCurrentStepIdx = 0;
 
+        // Reset ride tracking
+        rideStartTime = Date.now();
+        rideSpeedLog = [];
+        ridePositionLog = [];
+        rideTopSpeed = 0;
+        rideMaxRoadSpeed = null;
+
         // Collapse sidebar on mobile for full map view
         if (window.innerWidth <= 768 && !sidebar.classList.contains('collapsed')) {
             toggleSidebar();
@@ -1840,6 +1854,20 @@
         }
         navLastPosition = userCoord;
         navLastTimestamp = position.timestamp;
+
+        // Track ride stats
+        if (navCurrentSpeedMph > 0) rideSpeedLog.push(navCurrentSpeedMph);
+        if (navCurrentSpeedMph > rideTopSpeed) rideTopSpeed = navCurrentSpeedMph;
+        ridePositionLog.push(userCoord);
+
+        // Track max road speed limit encountered
+        if (navSpeedData && navSteps && navSteps[navCurrentStepIdx]) {
+            const wpIdx = Math.min(navSteps[navCurrentStepIdx].way_points[0], navSpeedData.length - 1);
+            const roadSpd = navSpeedData[wpIdx] ? navSpeedData[wpIdx].mph : null;
+            if (roadSpd != null && (rideMaxRoadSpeed == null || roadSpd > rideMaxRoadSpeed)) {
+                rideMaxRoadSpeed = roadSpd;
+            }
+        }
 
         // Update speedometer display
         updateSpeedometer();
@@ -2017,14 +2045,46 @@
     }
 
     function onNavArrival() {
+        showRideSummary();
         stopNavigation();
-        // Brief toast celebration
-        const toast = document.createElement('div');
-        toast.className = 'rate-limit-warning';
-        toast.style.background = '#2ecc71';
-        toast.textContent = '\uD83C\uDFC1 You have arrived at your destination!';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 5000);
+    }
+
+    function showRideSummary() {
+        const overlay = $('#ride-summary');
+        if (!overlay) return;
+
+        const durationMs = rideStartTime ? Date.now() - rideStartTime : 0;
+        const durationMin = Math.floor(durationMs / 60000);
+        const durationSec = Math.floor((durationMs % 60000) / 1000);
+        const durationStr = durationMin > 0 ? durationMin + 'm ' + durationSec + 's' : durationSec + 's';
+
+        // Calculate actual distance from GPS positions
+        let actualDistMi = 0;
+        for (let i = 1; i < ridePositionLog.length; i++) {
+            actualDistMi += haversineDistance(ridePositionLog[i - 1], ridePositionLog[i]) * 0.621371;
+        }
+
+        const avgSpeed = rideSpeedLog.length > 0
+            ? Math.round(rideSpeedLog.reduce((a, b) => a + b, 0) / rideSpeedLog.length)
+            : 0;
+
+        // Elevation gain from nav data
+        let elevGainFt = 0;
+        if (navElevationData && navElevationData.length > 1) {
+            for (let i = 1; i < navElevationData.length; i++) {
+                const diff = navElevationData[i] - navElevationData[i - 1];
+                if (diff > 0) elevGainFt += diff * 3.281;
+            }
+        }
+
+        $('#ride-stat-distance').textContent = actualDistMi.toFixed(1) + ' mi';
+        $('#ride-stat-duration').textContent = durationStr;
+        $('#ride-stat-avg-speed').textContent = avgSpeed + ' mph';
+        $('#ride-stat-top-speed').textContent = rideTopSpeed + ' mph';
+        $('#ride-stat-elevation').textContent = Math.round(elevGainFt) + ' ft';
+        $('#ride-stat-max-speed-road').textContent = rideMaxRoadSpeed != null ? rideMaxRoadSpeed + ' mph' : 'N/A';
+
+        overlay.classList.remove('hidden');
     }
 
     // ===== Rate Limit Warning Toast =====
@@ -2092,7 +2152,18 @@
         const closeNavBtn = $('#close-nav-btn');
         if (closeNavBtn) {
             closeNavBtn.addEventListener('click', () => {
-                if (confirm('End navigation?')) stopNavigation();
+                if (confirm('End navigation?')) {
+                    showRideSummary();
+                    stopNavigation();
+                }
+            });
+        }
+
+        // Ride summary close button
+        const rideSummaryClose = $('#ride-summary-close');
+        if (rideSummaryClose) {
+            rideSummaryClose.addEventListener('click', () => {
+                $('#ride-summary').classList.add('hidden');
             });
         }
 
