@@ -517,7 +517,8 @@
 
     // ===== Fetch Route from OpenRouteService =====
     async function fetchRoute() {
-        const preferResidential = $('#prefer-residential').checked;
+        const prefCheckbox = $('#prefer-residential');
+        const preferResidential = prefCheckbox ? prefCheckbox.checked : true;
 
         const body = {
             coordinates: [
