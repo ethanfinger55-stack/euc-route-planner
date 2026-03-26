@@ -118,6 +118,39 @@ body {
 }
 
 /* ===== Collapsible Sections ===== */
+
+/* Sidebar Group Labels */
+.sidebar-group {
+    margin-bottom: 6px;
+}
+
+.sidebar-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    padding: 14px 16px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sidebar-group-label i {
+    font-size: 12px;
+}
+
+/* Quick Actions Row */
+.sidebar-quick-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.sidebar-quick-actions .btn {
+    flex: 1;
+}
+
 .section-header {
     display: flex;
     align-items: center;

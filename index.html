@@ -23,303 +23,70 @@
                 </button>
             </div>
 
-            <!-- API Key Section -->
-            <div id="api-key-section" class="sidebar-section collapsible">
-                <div class="section-header" data-collapse>
-                    <label><i class="fas fa-key"></i> OpenRouteService API Key</label>
-                    <i class="fas fa-chevron-down section-chevron"></i>
-                </div>
-                <div class="section-body">
-                <div class="input-group">
-                    <input type="password" id="api-key-input" placeholder="Paste your API key here" />
-                    <button id="save-api-key" class="btn btn-sm" title="Save key">
-                        <i class="fas fa-save"></i>
-                    </button>
-                </div>
-                <small>
-                    Free key at <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener noreferrer">openrouteservice.org</a>
-                </small>
-                <div id="api-usage" class="api-usage hidden">
-                    <h4><i class="fas fa-chart-bar"></i> API Usage Today</h4>
-                    <div class="usage-row"><span>Directions</span><span id="usage-directions">0 / 2000</span></div>
-                    <div class="usage-row"><span>Autocomplete</span><span id="usage-autocomplete">0 / 1000</span></div>
-                    <div class="usage-row"><span>Reverse Geocode</span><span id="usage-reverse">0 / 1000</span></div>
-                    <div class="usage-row"><span>Search</span><span id="usage-search">0 / 1000</span></div>
-                    <small class="usage-reset-note">Resets daily. Stored locally.</small>
-                </div>
-                </div>
-            </div>
+            <!-- ===== PLAN YOUR RIDE (primary flow) ===== -->
+            <div class="sidebar-group">
+                <div class="sidebar-group-label"><i class="fas fa-map-marked-alt"></i> Plan Your Ride</div>
 
-            <!-- Home Address -->
-            <div class="sidebar-section collapsible">
-                <div class="section-header" data-collapse>
-                    <h3><i class="fas fa-home"></i> Home Address</h3>
-                    <i class="fas fa-chevron-down section-chevron"></i>
-                </div>
-                <div class="section-body">
-                <div id="home-address-display" class="home-address-display">
-                    <span id="home-address-text" class="home-address-text">No home address set</span>
-                </div>
-                <div class="home-address-actions">
-                    <button id="set-home-btn" class="btn btn-sm" title="Set home address">
-                        <i class="fas fa-map-pin"></i> Set Home
-                    </button>
-                    <button id="go-home-btn" class="btn btn-sm" title="Navigate home" disabled>
-                        <i class="fas fa-home"></i> Go Home
-                    </button>
-                </div>
-                </div>
-            </div>
-
-            <!-- Route Input Section -->
-            <div class="sidebar-section collapsible">
-                <div class="section-header" data-collapse>
-                    <label><i class="fas fa-route"></i> Route Input</label>
-                    <i class="fas fa-chevron-down section-chevron"></i>
-                </div>
-                <div class="section-body">
-                <label for="start-input">
-                    <i class="fas fa-map-marker-alt" style="color: var(--accent-green);"></i> Start Location
-                </label>
-                <div class="input-group">
-                    <input type="text" id="start-input" placeholder="Enter start address or use current location" autocomplete="off" />
-                    <button id="use-location-btn" class="btn btn-sm" title="Use my current location">
-                        <i class="fas fa-crosshairs"></i>
-                    </button>
-                </div>
-
-                <label for="end-input" style="margin-top: 12px;">
-                    <i class="fas fa-flag-checkered" style="color: var(--accent-red);"></i> Destinations
-                </label>
-
-                <!-- Waypoint list (draggable) -->
-                <div id="waypoint-list" class="waypoint-list"></div>
-
-                <!-- Add destination input -->
-                <div class="input-group" id="add-dest-group">
-                    <input type="text" id="end-input" placeholder="Add destination address" autocomplete="off" />
-                    <button id="pick-dest-btn" class="btn btn-sm" title="Pick on map">
-                        <i class="fas fa-map-marked-alt"></i>
-                    </button>
-                    <button id="add-dest-btn" class="btn btn-sm" title="Add destination">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-
-                <button id="clear-all-btn" class="btn btn-sm btn-full" style="margin-top: 10px;">
-                    <i class="fas fa-eraser"></i> Clear Start &amp; Destination
-                </button>
-
-                <!-- Geocode suggestions dropdown -->
-                <div id="suggestions-dropdown" class="suggestions-dropdown hidden"></div>
-                </div>
-            </div>
-
-            <!-- Saved Routes -->
-            <div class="sidebar-section collapsible collapsed-section">
-                <div class="section-header" data-collapse>
-                    <h3><i class="fas fa-history"></i> Recent Routes</h3>
-                    <i class="fas fa-chevron-down section-chevron"></i>
-                </div>
-                <div class="section-body">
-                <div id="saved-routes-list" class="saved-routes-list">
-                    <p class="no-saved-routes">No saved routes yet. Routes are saved automatically after searching.</p>
-                </div>
-                <button id="clear-history-btn" class="btn btn-sm btn-full hidden" style="margin-top: 8px;">
-                    <i class="fas fa-trash-alt"></i> Clear History
-                </button>
-                </div>
-            </div>
-
-            <!-- Route Preferences -->
-            <div class="sidebar-section collapsible collapsed-section">
-                <div class="section-header" data-collapse>
-                    <h3><i class="fas fa-sliders-h"></i> Route Preferences</h3>
-                    <i class="fas fa-chevron-down section-chevron"></i>
-                </div>
-                <div class="section-body">
-                <div class="preference-item">
-                    <label for="max-speed-pref">Max preferred speed limit</label>
-                    <select id="max-speed-pref">
-                        <option value="25">25 mph (40 km/h)</option>
-                        <option value="30">30 mph (48 km/h)</option>
-                        <option value="35" selected>35 mph (56 km/h)</option>
-                        <option value="45">45 mph (72 km/h)</option>
-                        <option value="100">No limit</option>
-                    </select>
-                </div>
-                <div class="preference-item">
-                    <label for="prefer-residential">
-                        <input type="checkbox" id="prefer-residential" checked />
-                        Prefer shortest / residential roads
+                <!-- Route Input -->
+                <div class="sidebar-section">
+                    <label for="start-input">
+                        <i class="fas fa-map-marker-alt" style="color: var(--accent-green);"></i> Start Location
                     </label>
-                </div>
-                </div>
-            </div>
-
-            <!-- Range Estimator -->
-            <div class="sidebar-section collapsible collapsed-section">
-                <div class="section-header" data-collapse>
-                    <h3><i class="fas fa-battery-three-quarters"></i> Range Estimator</h3>
-                    <i class="fas fa-chevron-down section-chevron"></i>
-                </div>
-                <div class="section-body">
-                <div class="preference-item">
-                    <label for="wheel-range">Wheel rated range (miles)</label>
-                    <input type="number" id="wheel-range" min="1" max="200" value="30" class="range-input" />
-                </div>
-                <div class="preference-item">
-                    <label for="battery-pct">Current battery %</label>
-                    <input type="number" id="battery-pct" min="1" max="100" value="100" class="range-input" />
-                </div>
-                </div>
-            </div>
-
-            <!-- Connect EUC -->
-            <div class="sidebar-section collapsible">
-                <div class="section-header" data-collapse>
-                    <h3><i class="fab fa-bluetooth-b"></i> Connect EUC</h3>
-                    <i class="fas fa-chevron-down section-chevron"></i>
-                </div>
-                <div class="section-body">
-                <div class="ble-connect-row">
-                    <button id="ble-connect-btn" class="btn btn-full ble-btn">
-                        <i class="fab fa-bluetooth-b"></i> Connect Wheel
-                    </button>
-                </div>
-                <div class="ble-status-row">
-                    <span id="ble-status-indicator" class="ble-status-dot disconnected"></span>
-                    <span id="ble-status-text">Not connected</span>
-                </div>
-                <!-- Connection log -->
-                <div id="ble-log" class="ble-log hidden"></div>
-                <!-- Connected telemetry -->
-                <div id="ble-telemetry" class="ble-telemetry hidden">
-                    <div class="ble-tel-grid">
-                        <div class="ble-tel-item">
-                            <span class="ble-tel-label"><i class="fas fa-tachometer-alt"></i> Speed</span>
-                            <span id="ble-tel-speed" class="ble-tel-value">0 mph</span>
-                        </div>
-                        <div class="ble-tel-item">
-                            <span class="ble-tel-label"><i class="fas fa-battery-half"></i> Battery</span>
-                            <span id="ble-tel-battery" class="ble-tel-value">0%</span>
-                        </div>
-                        <div class="ble-tel-item">
-                            <span class="ble-tel-label"><i class="fas fa-bolt"></i> Voltage</span>
-                            <span id="ble-tel-voltage" class="ble-tel-value">0V</span>
-                        </div>
-                        <div class="ble-tel-item">
-                            <span class="ble-tel-label"><i class="fas fa-thermometer-half"></i> Temp</span>
-                            <span id="ble-tel-temp" class="ble-tel-value">0°C</span>
-                        </div>
-                        <div class="ble-tel-item">
-                            <span class="ble-tel-label"><i class="fas fa-fire"></i> Power</span>
-                            <span id="ble-tel-power" class="ble-tel-value">0W</span>
-                        </div>
-                    </div>
-                    <div class="ble-controls">
-                        <button id="ble-light-btn" class="btn btn-sm ble-ctrl-btn" title="Toggle Light">
-                            <i class="fas fa-lightbulb"></i>
-                        </button>
-                        <button id="ble-beep-btn" class="btn btn-sm ble-ctrl-btn" title="Beep">
-                            <i class="fas fa-volume-up"></i>
+                    <div class="input-group">
+                        <input type="text" id="start-input" placeholder="Enter start address or use current location" autocomplete="off" />
+                        <button id="use-location-btn" class="btn btn-sm" title="Use my current location">
+                            <i class="fas fa-crosshairs"></i>
                         </button>
                     </div>
-                    <!-- BLE Feature Toggles -->
-                    <div class="ble-feature-toggles">
-                        <label class="ble-toggle-row">
-                            <span><i class="fas fa-sun"></i> Auto Headlight</span>
-                            <input type="checkbox" id="ble-auto-light" class="ble-toggle-check">
-                            <span class="ble-toggle-slider"></span>
-                        </label>
-                        <label class="ble-toggle-row">
-                            <span><i class="fas fa-bell"></i> Turn Beep Alert</span>
-                            <input type="checkbox" id="ble-turn-beep" class="ble-toggle-check">
-                            <span class="ble-toggle-slider"></span>
-                        </label>
-                        <label class="ble-toggle-row">
-                            <span><i class="fas fa-exclamation-triangle"></i> Speed Alert</span>
-                            <input type="checkbox" id="ble-speed-alert" class="ble-toggle-check" checked>
-                            <span class="ble-toggle-slider"></span>
-                        </label>
-                    </div>
-                    <!-- Wheel Diagnostics -->
-                    <div id="ble-diagnostics" class="ble-diagnostics hidden">
-                        <div class="ble-diag-title"><i class="fas fa-stethoscope"></i> Diagnostics</div>
-                        <div class="ble-diag-grid">
-                            <div class="ble-diag-item">
-                                <span class="ble-diag-label">Voltage</span>
-                                <span id="diag-voltage" class="ble-diag-value">—</span>
-                            </div>
-                            <div class="ble-diag-item">
-                                <span class="ble-diag-label">Current</span>
-                                <span id="diag-current" class="ble-diag-value">—</span>
-                            </div>
-                            <div class="ble-diag-item">
-                                <span class="ble-diag-label">MOS Temp</span>
-                                <span id="diag-temp" class="ble-diag-value">—</span>
-                            </div>
-                            <div class="ble-diag-item">
-                                <span class="ble-diag-label">Power</span>
-                                <span id="diag-power" class="ble-diag-value">—</span>
-                            </div>
-                            <div class="ble-diag-item">
-                                <span class="ble-diag-label">Load (PWM)</span>
-                                <span id="diag-pwm" class="ble-diag-value">—</span>
-                            </div>
-                            <div class="ble-diag-item">
-                                <span class="ble-diag-label">Battery</span>
-                                <span id="diag-battery" class="ble-diag-value">—</span>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Odometer & Maintenance -->
-                    <div id="ble-odometer" class="ble-odometer hidden">
-                        <div class="ble-diag-title"><i class="fas fa-road"></i> Odometer</div>
-                        <div class="ble-odo-row">
-                            <span>Trip Distance</span>
-                            <span id="odo-trip" class="ble-diag-value">0 mi</span>
-                        </div>
-                        <div class="ble-odo-row">
-                            <span>Session Distance</span>
-                            <span id="odo-session" class="ble-diag-value">0 mi</span>
-                        </div>
-                        <div id="maintenance-alerts" class="maintenance-alerts"></div>
-                    </div>
-                </div>
-                <!-- Tips shown when disconnected -->
-                <div id="ble-tips" class="ble-tips">
-                    <p><i class="fas fa-info-circle"></i> <strong>Before connecting:</strong></p>
-                    <ul>
-                        <li>Turn on your wheel & make sure it's powered up</li>
-                        <li>Use <strong>Chrome</strong> or <strong>Edge</strong> browser</li>
-                        <li>Allow Bluetooth when your phone asks</li>
-                        <li>Close the InMotion app if it's open</li>
-                    </ul>
-                </div>
-                </div>
-            </div>
 
-            <!-- Trip Type -->
-            <div class="sidebar-section">
-                <div class="trip-type-toggle">
-                    <button id="trip-one-way" class="trip-type-btn active" data-type="one-way">
-                        <i class="fas fa-long-arrow-alt-right"></i> One Way
-                    </button>
-                    <button id="trip-round-trip" class="trip-type-btn" data-type="round-trip">
-                        <i class="fas fa-exchange-alt"></i> Round Trip
+                    <label for="end-input" style="margin-top: 12px;">
+                        <i class="fas fa-flag-checkered" style="color: var(--accent-red);"></i> Destinations
+                    </label>
+
+                    <!-- Waypoint list (draggable) -->
+                    <div id="waypoint-list" class="waypoint-list"></div>
+
+                    <!-- Add destination input -->
+                    <div class="input-group" id="add-dest-group">
+                        <input type="text" id="end-input" placeholder="Add destination address" autocomplete="off" />
+                        <button id="pick-dest-btn" class="btn btn-sm" title="Pick on map">
+                            <i class="fas fa-map-marked-alt"></i>
+                        </button>
+                        <button id="add-dest-btn" class="btn btn-sm" title="Add destination">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <div class="sidebar-quick-actions">
+                        <button id="go-home-btn" class="btn btn-sm" title="Navigate home" disabled>
+                            <i class="fas fa-home"></i> Go Home
+                        </button>
+                        <button id="clear-all-btn" class="btn btn-sm" title="Clear all">
+                            <i class="fas fa-eraser"></i> Clear
+                        </button>
+                    </div>
+
+                    <!-- Geocode suggestions dropdown -->
+                    <div id="suggestions-dropdown" class="suggestions-dropdown hidden"></div>
+                </div>
+
+                <!-- Trip Type + Find Route -->
+                <div class="sidebar-section" style="padding-top: 4px;">
+                    <div class="trip-type-toggle">
+                        <button id="trip-one-way" class="trip-type-btn active" data-type="one-way">
+                            <i class="fas fa-long-arrow-alt-right"></i> One Way
+                        </button>
+                        <button id="trip-round-trip" class="trip-type-btn" data-type="round-trip">
+                            <i class="fas fa-exchange-alt"></i> Round Trip
+                        </button>
+                    </div>
+                    <button id="find-route-btn" class="btn btn-primary btn-full" style="margin-top: 10px;">
+                        <i class="fas fa-search-location"></i> Find EUC-Friendly Route
                     </button>
                 </div>
             </div>
 
-            <!-- Find Route Button -->
-            <div class="sidebar-section">
-                <button id="find-route-btn" class="btn btn-primary btn-full">
-                    <i class="fas fa-search-location"></i> Find EUC-Friendly Route
-                </button>
-            </div>
-
-            <!-- Route Info Panel -->
+            <!-- Route Info Panel (shown after route found) -->
             <div id="route-info" class="sidebar-section collapsible route-info hidden">
                 <!-- Route Option Tabs -->
                 <div id="route-tabs" class="route-tabs hidden"></div>
@@ -348,15 +115,12 @@
                     </div>
                 </div>
 
-                <!-- Speed Limit Breakdown -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-tachometer-alt"></i> Speed Limits on Route</h4>
                 <div id="speed-breakdown" class="speed-breakdown"></div>
 
-                <!-- Editable Speed Limits Per Road -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-edit"></i> Edit Road Speed Limits</h4>
                 <div id="road-speed-editor" class="road-speed-editor"></div>
 
-                <!-- Range Estimate Indicator -->
                 <div id="range-estimate" class="range-estimate hidden">
                     <div class="range-indicator" id="range-indicator">
                         <i class="fas fa-battery-full"></i>
@@ -364,7 +128,6 @@
                     </div>
                 </div>
 
-                <!-- Elevation Profile -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-mountain"></i> Elevation Profile</h4>
                 <div id="elevation-profile" class="elevation-profile hidden">
                     <canvas id="elevation-canvas"></canvas>
@@ -375,7 +138,6 @@
                     </div>
                 </div>
 
-                <!-- Weather Conditions -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-cloud-sun"></i> Weather Conditions</h4>
                 <div id="weather-info" class="weather-info hidden">
                     <div class="weather-card">
@@ -388,14 +150,241 @@
                     </div>
                 </div>
 
-                <!-- Turn-by-turn with speed limits -->
                 <h4 style="margin-top: 16px;"><i class="fas fa-list-ol"></i> Turn-by-Turn Directions</h4>
                 <div id="directions-list" class="directions-list"></div>
 
-                <!-- Start Navigation Button -->
                 <button id="start-nav-btn" class="btn btn-nav btn-full" style="margin-top: 16px;">
                     <i class="fas fa-location-arrow"></i> Start Navigation
                 </button>
+                </div>
+            </div>
+
+            <!-- ===== WHEEL & SETTINGS (secondary) ===== -->
+            <div class="sidebar-group">
+                <div class="sidebar-group-label"><i class="fas fa-cog"></i> Wheel &amp; Settings</div>
+
+                <!-- Connect EUC -->
+                <div class="sidebar-section collapsible collapsed-section">
+                    <div class="section-header" data-collapse>
+                        <h3><i class="fab fa-bluetooth-b"></i> Connect EUC</h3>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="section-body">
+                    <div class="ble-connect-row">
+                        <button id="ble-connect-btn" class="btn btn-full ble-btn">
+                            <i class="fab fa-bluetooth-b"></i> Connect Wheel
+                        </button>
+                    </div>
+                    <div class="ble-status-row">
+                        <span id="ble-status-indicator" class="ble-status-dot disconnected"></span>
+                        <span id="ble-status-text">Not connected</span>
+                    </div>
+                    <div id="ble-log" class="ble-log hidden"></div>
+                    <div id="ble-telemetry" class="ble-telemetry hidden">
+                        <div class="ble-tel-grid">
+                            <div class="ble-tel-item">
+                                <span class="ble-tel-label"><i class="fas fa-tachometer-alt"></i> Speed</span>
+                                <span id="ble-tel-speed" class="ble-tel-value">0 mph</span>
+                            </div>
+                            <div class="ble-tel-item">
+                                <span class="ble-tel-label"><i class="fas fa-battery-half"></i> Battery</span>
+                                <span id="ble-tel-battery" class="ble-tel-value">0%</span>
+                            </div>
+                            <div class="ble-tel-item">
+                                <span class="ble-tel-label"><i class="fas fa-bolt"></i> Voltage</span>
+                                <span id="ble-tel-voltage" class="ble-tel-value">0V</span>
+                            </div>
+                            <div class="ble-tel-item">
+                                <span class="ble-tel-label"><i class="fas fa-thermometer-half"></i> Temp</span>
+                                <span id="ble-tel-temp" class="ble-tel-value">0°C</span>
+                            </div>
+                            <div class="ble-tel-item">
+                                <span class="ble-tel-label"><i class="fas fa-fire"></i> Power</span>
+                                <span id="ble-tel-power" class="ble-tel-value">0W</span>
+                            </div>
+                        </div>
+                        <div class="ble-controls">
+                            <button id="ble-light-btn" class="btn btn-sm ble-ctrl-btn" title="Toggle Light">
+                                <i class="fas fa-lightbulb"></i>
+                            </button>
+                            <button id="ble-beep-btn" class="btn btn-sm ble-ctrl-btn" title="Beep">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                        </div>
+                        <div class="ble-feature-toggles">
+                            <label class="ble-toggle-row">
+                                <span><i class="fas fa-sun"></i> Auto Headlight</span>
+                                <input type="checkbox" id="ble-auto-light" class="ble-toggle-check">
+                                <span class="ble-toggle-slider"></span>
+                            </label>
+                            <label class="ble-toggle-row">
+                                <span><i class="fas fa-bell"></i> Turn Beep Alert</span>
+                                <input type="checkbox" id="ble-turn-beep" class="ble-toggle-check">
+                                <span class="ble-toggle-slider"></span>
+                            </label>
+                            <label class="ble-toggle-row">
+                                <span><i class="fas fa-exclamation-triangle"></i> Speed Alert</span>
+                                <input type="checkbox" id="ble-speed-alert" class="ble-toggle-check" checked>
+                                <span class="ble-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div id="ble-diagnostics" class="ble-diagnostics hidden">
+                            <div class="ble-diag-title"><i class="fas fa-stethoscope"></i> Diagnostics</div>
+                            <div class="ble-diag-grid">
+                                <div class="ble-diag-item">
+                                    <span class="ble-diag-label">Voltage</span>
+                                    <span id="diag-voltage" class="ble-diag-value">—</span>
+                                </div>
+                                <div class="ble-diag-item">
+                                    <span class="ble-diag-label">Current</span>
+                                    <span id="diag-current" class="ble-diag-value">—</span>
+                                </div>
+                                <div class="ble-diag-item">
+                                    <span class="ble-diag-label">MOS Temp</span>
+                                    <span id="diag-temp" class="ble-diag-value">—</span>
+                                </div>
+                                <div class="ble-diag-item">
+                                    <span class="ble-diag-label">Power</span>
+                                    <span id="diag-power" class="ble-diag-value">—</span>
+                                </div>
+                                <div class="ble-diag-item">
+                                    <span class="ble-diag-label">Load (PWM)</span>
+                                    <span id="diag-pwm" class="ble-diag-value">—</span>
+                                </div>
+                                <div class="ble-diag-item">
+                                    <span class="ble-diag-label">Battery</span>
+                                    <span id="diag-battery" class="ble-diag-value">—</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="ble-odometer" class="ble-odometer hidden">
+                            <div class="ble-diag-title"><i class="fas fa-road"></i> Odometer</div>
+                            <div class="ble-odo-row">
+                                <span>Trip Distance</span>
+                                <span id="odo-trip" class="ble-diag-value">0 mi</span>
+                            </div>
+                            <div class="ble-odo-row">
+                                <span>Session Distance</span>
+                                <span id="odo-session" class="ble-diag-value">0 mi</span>
+                            </div>
+                            <div id="maintenance-alerts" class="maintenance-alerts"></div>
+                        </div>
+                    </div>
+                    <div id="ble-tips" class="ble-tips">
+                        <p><i class="fas fa-info-circle"></i> <strong>Before connecting:</strong></p>
+                        <ul>
+                            <li>Turn on your wheel &amp; make sure it's powered up</li>
+                            <li>Use <strong>Chrome</strong> or <strong>Edge</strong> browser</li>
+                            <li>Allow Bluetooth when your phone asks</li>
+                            <li>Close the InMotion app if it's open</li>
+                        </ul>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- Range & Battery -->
+                <div class="sidebar-section collapsible collapsed-section">
+                    <div class="section-header" data-collapse>
+                        <h3><i class="fas fa-battery-three-quarters"></i> Range &amp; Battery</h3>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="section-body">
+                    <div class="preference-item">
+                        <label for="wheel-range">Wheel rated range (miles)</label>
+                        <input type="number" id="wheel-range" min="1" max="200" value="30" class="range-input" />
+                    </div>
+                    <div class="preference-item">
+                        <label for="battery-pct">Current battery %</label>
+                        <input type="number" id="battery-pct" min="1" max="100" value="100" class="range-input" />
+                    </div>
+                    </div>
+                </div>
+
+                <!-- Route Preferences -->
+                <div class="sidebar-section collapsible collapsed-section">
+                    <div class="section-header" data-collapse>
+                        <h3><i class="fas fa-sliders-h"></i> Route Preferences</h3>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="section-body">
+                    <div class="preference-item">
+                        <label for="max-speed-pref">Max preferred speed limit</label>
+                        <select id="max-speed-pref">
+                            <option value="25">25 mph (40 km/h)</option>
+                            <option value="30">30 mph (48 km/h)</option>
+                            <option value="35" selected>35 mph (56 km/h)</option>
+                            <option value="45">45 mph (72 km/h)</option>
+                            <option value="100">No limit</option>
+                        </select>
+                    </div>
+                    <div class="preference-item">
+                        <label for="prefer-residential">
+                            <input type="checkbox" id="prefer-residential" checked />
+                            Prefer shortest / residential roads
+                        </label>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- Home Address -->
+                <div class="sidebar-section collapsible collapsed-section">
+                    <div class="section-header" data-collapse>
+                        <h3><i class="fas fa-home"></i> Home Address</h3>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="section-body">
+                    <div id="home-address-display" class="home-address-display">
+                        <span id="home-address-text" class="home-address-text">No home address set</span>
+                    </div>
+                    <div class="home-address-actions">
+                        <button id="set-home-btn" class="btn btn-sm" title="Set home address">
+                            <i class="fas fa-map-pin"></i> Set Home
+                        </button>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- Saved Routes -->
+                <div class="sidebar-section collapsible collapsed-section">
+                    <div class="section-header" data-collapse>
+                        <h3><i class="fas fa-history"></i> Recent Routes</h3>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="section-body">
+                    <div id="saved-routes-list" class="saved-routes-list">
+                        <p class="no-saved-routes">No saved routes yet.</p>
+                    </div>
+                    <button id="clear-history-btn" class="btn btn-sm btn-full hidden" style="margin-top: 8px;">
+                        <i class="fas fa-trash-alt"></i> Clear History
+                    </button>
+                    </div>
+                </div>
+
+                <!-- API Key -->
+                <div id="api-key-section" class="sidebar-section collapsible collapsed-section">
+                    <div class="section-header" data-collapse>
+                        <label><i class="fas fa-key"></i> API Key</label>
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="section-body">
+                    <div class="input-group">
+                        <input type="password" id="api-key-input" placeholder="Paste your API key here" />
+                        <button id="save-api-key" class="btn btn-sm" title="Save key">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </div>
+                    <small>
+                        Free key at <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener noreferrer">openrouteservice.org</a>
+                    </small>
+                    <div id="api-usage" class="api-usage hidden">
+                        <h4><i class="fas fa-chart-bar"></i> API Usage Today</h4>
+                        <div class="usage-row"><span>Directions</span><span id="usage-directions">0 / 2000</span></div>
+                        <div class="usage-row"><span>Autocomplete</span><span id="usage-autocomplete">0 / 1000</span></div>
+                        <div class="usage-row"><span>Reverse Geocode</span><span id="usage-reverse">0 / 1000</span></div>
+                        <div class="usage-row"><span>Search</span><span id="usage-search">0 / 1000</span></div>
+                        <small class="usage-reset-note">Resets daily. Stored locally.</small>
+                    </div>
+                    </div>
                 </div>
             </div>
         </aside>

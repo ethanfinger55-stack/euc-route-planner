@@ -825,6 +825,7 @@
         const onTouchEnd = (ev) => {
             document.removeEventListener('touchmove', onTouchMove);
             document.removeEventListener('touchend', onTouchEnd);
+            document.removeEventListener('touchcancel', onTouchCancel);
             if (!touchDragItem) return;
             touchDragItem.classList.remove('dragging');
 
@@ -846,8 +847,19 @@
             dragSrcIndex = null;
         };
 
+        const onTouchCancel = () => {
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+            document.removeEventListener('touchcancel', onTouchCancel);
+            if (touchDragItem) touchDragItem.classList.remove('dragging');
+            document.querySelectorAll('.waypoint-item').forEach(el => el.classList.remove('drag-over'));
+            touchDragItem = null;
+            dragSrcIndex = null;
+        };
+
         document.addEventListener('touchmove', onTouchMove, { passive: false });
         document.addEventListener('touchend', onTouchEnd);
+        document.addEventListener('touchcancel', onTouchCancel);
     }
 
     function placeWaypointMarkers() {
@@ -1327,15 +1339,18 @@
 
     async function selectRoute(idx) {
         if (idx === selectedRouteIdx) return;
+        const targetIdx = idx;
         selectedRouteIdx = idx;
 
-        const sel = allRoutes[selectedRouteIdx];
+        const sel = allRoutes[targetIdx];
 
         // Fetch elevation data if not yet loaded for this route
         if (!sel.elevationData) {
             showLoading('Loading route details...');
             sel.elevationData = await fetchElevationData(sel.routeCoords);
             hideLoading();
+            // If user switched routes while loading, abort
+            if (selectedRouteIdx !== targetIdx) return;
         }
 
         // Redraw all routes with new selection
@@ -3018,12 +3033,12 @@
             ? Math.round(rideSpeedLog.reduce((a, b) => a + b, 0) / rideSpeedLog.length)
             : 0;
 
-        // Elevation gain from nav data
+        // Elevation gain from nav data (already in feet from fetchElevationData)
         let elevGainFt = 0;
         if (navElevationData && navElevationData.length > 1) {
             for (let i = 1; i < navElevationData.length; i++) {
                 const diff = navElevationData[i] - navElevationData[i - 1];
-                if (diff > 0) elevGainFt += diff * 3.281;
+                if (diff > 0) elevGainFt += diff;
             }
         }
 
@@ -3839,15 +3854,17 @@
             bleLog('Connect your wheel first to toggle the light', 'warn');
             return;
         }
-        bleLightOn = !bleLightOn;
-        const enable = bleLightOn ? 0x01 : 0x00;
+        const newState = !bleLightOn;
+        const enable = newState ? 0x01 : 0x00;
         // Try standard 2-byte light command: [0x50, enable]
         const msg = bleV2BuildMsg(0x14, 0x60, [0x50, enable]);
         try {
             await bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg));
+            bleLightOn = newState;
             bleLog('Light ' + (bleLightOn ? 'on' : 'off'), 'ok');
         } catch (e) {
             bleLog('Light toggle failed: ' + e.message, 'error');
+            return;
         }
         // Also try V12-style 3-byte command: [0x50, lowBeam, highBeam]
         try {
@@ -4026,9 +4043,9 @@
         if (!warning || !textEl) return;
 
         const step = navSteps[navCurrentStepIdx];
-        if (!step) { warning.classList.add('hidden'); return; }
+        if (!step || !step.way_points) { warning.classList.add('hidden'); return; }
 
-        const wpIdx = Math.min(step.way_points[0], navSpeedData.length - 1);
+        const wpIdx = Math.min(step.way_points[0] || 0, navSpeedData.length - 1);
         const sd = navSpeedData[wpIdx];
         if (!sd) { warning.classList.add('hidden'); return; }
 
