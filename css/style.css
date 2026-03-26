@@ -1637,40 +1637,155 @@ input[type="checkbox"] {
     flex: 1;
 }
 
-/* ===== Speedometer in Nav HUD ===== */
-.nav-hud-speedometer {
+/* ===== Floating Speedometer (above nav HUD) ===== */
+.floating-speedometer {
+    position: fixed;
+    bottom: 160px;
+    right: 16px;
+    z-index: 1600;
     display: flex;
-    align-items: baseline;
-    gap: 3px;
-    padding: 4px 12px;
-    border-radius: 10px;
-    background: var(--bg-card);
-    border: 2px solid var(--accent-green);
-    transition: border-color 0.3s, background 0.3s;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: var(--bg-sidebar);
+    border: 4px solid var(--accent-green);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+    transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
 }
 
-.nav-hud-speedometer.over-limit {
+.floating-speedometer.speed-green {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 20px rgba(46, 204, 113, 0.3), 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.floating-speedometer.speed-yellow {
+    border-color: var(--accent-yellow);
+    box-shadow: 0 0 20px rgba(241, 196, 15, 0.3), 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.floating-speedometer.speed-red {
     border-color: var(--accent-red);
-    background: rgba(231, 76, 60, 0.2);
+    box-shadow: 0 0 20px rgba(231, 76, 60, 0.4), 0 4px 24px rgba(0, 0, 0, 0.5);
     animation: speedFlash 0.6s ease infinite alternate;
 }
 
 @keyframes speedFlash {
-    from { background: rgba(231, 76, 60, 0.15); }
-    to { background: rgba(231, 76, 60, 0.35); }
+    from { box-shadow: 0 0 20px rgba(231, 76, 60, 0.3), 0 4px 24px rgba(0, 0, 0, 0.5); }
+    to { box-shadow: 0 0 35px rgba(231, 76, 60, 0.6), 0 4px 24px rgba(0, 0, 0, 0.5); }
 }
 
-.speedometer-value {
-    font-size: 22px;
-    font-weight: 800;
+.floating-speed-value {
+    font-size: 42px;
+    font-weight: 900;
     color: var(--text-primary);
     line-height: 1;
 }
 
-.speedometer-unit {
-    font-size: 11px;
+.floating-speed-unit {
+    font-size: 13px;
     color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ===== Trip Type Toggle ===== */
+.trip-type-toggle {
+    display: flex;
+    gap: 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.trip-type-btn {
+    flex: 1;
+    padding: 10px 14px;
+    font-size: 13px;
     font-weight: 600;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.trip-type-btn:first-child {
+    border-right: 1px solid var(--border-color);
+}
+
+.trip-type-btn.active {
+    background: rgba(74, 144, 217, 0.2);
+    color: var(--accent-blue);
+}
+
+.trip-type-btn:hover:not(.active) {
+    background: var(--border-color);
+}
+
+/* ===== Speed Review Modal ===== */
+.speed-review-list {
+    max-height: 300px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    text-align: left;
+}
+
+.speed-review-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+}
+
+.speed-review-item-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.speed-review-item select {
+    padding: 6px 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.speed-review-item .speed-verified {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(46, 204, 113, 0.15);
+    color: var(--accent-green);
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+
+.speed-review-item .speed-verified:hover {
+    background: rgba(46, 204, 113, 0.25);
 }
 
 /* ===== Speed Limit Update Modal ===== */
@@ -1939,6 +2054,36 @@ input[type="checkbox"] {
     color: var(--text-muted);
 }
 
+/* ===== Fullscreen Button ===== */
+.fullscreen-btn {
+    position: fixed;
+    top: 12px;
+    left: calc(var(--sidebar-width) + 12px);
+    z-index: 1500;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+    transition: background 0.2s, color 0.2s, left 0.3s ease;
+}
+
+.sidebar.collapsed ~ .fullscreen-btn {
+    left: 12px;
+}
+
+.fullscreen-btn:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
 /* ===== Close Sidebar Button (mobile) ===== */
 .btn-close-sidebar {
     display: none;
@@ -2008,6 +2153,15 @@ input[type="checkbox"] {
 
     .btn-close-sidebar {
         display: flex;
+    }
+
+    /* ----- Fullscreen button mobile ----- */
+    .fullscreen-btn {
+        top: calc(12px + env(safe-area-inset-top));
+        left: 12px;
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
     }
 
     /* ----- Toggle becomes floating hamburger ----- */
@@ -2337,14 +2491,27 @@ input[type="checkbox"] {
         font-size: 14px;
     }
 
-    /* ----- Speedometer mobile ----- */
-    .speedometer-value {
-        font-size: 26px;
+    /* ----- Floating Speedometer mobile ----- */
+    .floating-speedometer {
+        width: 100px;
+        height: 100px;
+        bottom: 170px;
+        right: 12px;
     }
 
-    .nav-hud-speedometer {
-        padding: 6px 14px;
-        border-radius: 12px;
+    .floating-speed-value {
+        font-size: 38px;
+    }
+
+    .floating-speed-unit {
+        font-size: 11px;
+    }
+
+    /* ----- Trip Type mobile ----- */
+    .trip-type-btn {
+        padding: 12px 14px;
+        font-size: 14px;
+        min-height: 44px;
     }
 
     /* ----- Speed limit modal mobile ----- */

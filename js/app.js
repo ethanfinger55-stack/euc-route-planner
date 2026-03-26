@@ -147,6 +147,9 @@
     let rideTopSpeed = 0;
     let rideMaxRoadSpeed = null;
 
+    // Trip type state
+    let tripType = 'one-way'; // 'one-way' or 'round-trip'
+
     // Manual speed limit overrides (keyed by "lat,lon" of route point)
     let manualSpeedOverrides = {};
     let pendingSpeedLimitCoordIdx = null; // index into route coords for the modal
@@ -232,6 +235,34 @@
         localStorage.setItem('euc_speed_overrides', JSON.stringify(manualSpeedOverrides));
     }
 
+    // ===== Fullscreen =====
+    function toggleFullscreen() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            var el = document.documentElement;
+            if (el.requestFullscreen) {
+                el.requestFullscreen();
+            } else if (el.webkitRequestFullscreen) {
+                el.webkitRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    }
+
+    function updateFullscreenIcon() {
+        var btn = $('#fullscreen-btn');
+        if (!btn) return;
+        var isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        btn.innerHTML = isFS
+            ? '<i class="fas fa-compress"></i>'
+            : '<i class="fas fa-expand"></i>';
+        btn.title = isFS ? 'Exit fullscreen' : 'Toggle fullscreen';
+    }
+
     // ===== Initialization =====
     function init() {
         initMap();
@@ -239,6 +270,12 @@
         bindEvents();
         updateHomeDisplay();
         manualSpeedOverrides = loadManualSpeedOverrides();
+
+        // Fullscreen button
+        var fsBtn = $('#fullscreen-btn');
+        if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+        document.addEventListener('fullscreenchange', updateFullscreenIcon);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
         // On mobile, start with sidebar collapsed so map is visible
         if (window.innerWidth <= 768) {
@@ -1091,6 +1128,9 @@
 
             speedLegend.classList.remove('hidden');
             hideLoading();
+
+            // Show speed limit review workflow
+            showSpeedLimitReview();
 
         } catch (err) {
             hideLoading();
@@ -2014,37 +2054,57 @@
         var elevPenalty = (elevGain / 100) * 0.02 * wheelRange;
         var effectiveRange = availableRange - elevPenalty;
 
-        // One-way usage
-        var oneWayPct = Math.round((routeDistance / effectiveRange) * 100);
-        var oneWayRemain = effectiveRange - routeDistance;
-
-        // Round trip (double the distance + roughly double elevation penalty)
-        var roundTripDist = routeDistance * 2;
-        var roundTripEffective = effectiveRange; // same battery, double distance
-        var roundTripPct = Math.round((roundTripDist / roundTripEffective) * 100);
-        var roundTripRemain = roundTripEffective - roundTripDist;
+        // Calculate based on trip type
+        var tripDist = tripType === 'round-trip' ? routeDistance * 2 : routeDistance;
+        var remain = effectiveRange - tripDist;
 
         var toDestEl = $('#battery-to-dest-val');
         var roundTripEl = $('#battery-round-trip-val');
         var statusEl = $('#battery-status');
+        var roundTripRow = $('#battery-round-trip');
 
         var oneWayRemainingPct = Math.max(0, Math.round(batteryPct - (routeDistance / effectiveRange) * batteryPct));
+        var roundTripDist = routeDistance * 2;
         var roundTripRemainingPct = Math.max(0, Math.round(batteryPct - (roundTripDist / effectiveRange) * batteryPct));
 
         if (toDestEl) toDestEl.textContent = oneWayRemainingPct + '% left';
-        if (roundTripEl) roundTripEl.textContent = roundTripRemainingPct + '% left';
 
-        // Status message
-        if (statusEl) {
-            if (roundTripRemain > 2) {
-                statusEl.textContent = '\u2705 Round trip OK \u2014 ' + Math.round(roundTripRemain) + ' mi spare';
-                statusEl.className = 'battery-card-status battery-status-good';
-            } else if (oneWayRemain > 0 && roundTripRemain <= 2) {
-                statusEl.textContent = '\u26A0\uFE0F Can reach dest, not enough for return';
-                statusEl.className = 'battery-card-status battery-status-tight';
+        // Show/hide round trip row based on trip type
+        if (roundTripRow) {
+            if (tripType === 'round-trip') {
+                roundTripRow.classList.remove('hidden');
+                if (roundTripEl) roundTripEl.textContent = roundTripRemainingPct + '% left';
             } else {
-                statusEl.textContent = '\u274C Cannot reach destination';
-                statusEl.className = 'battery-card-status battery-status-bad';
+                roundTripRow.classList.add('hidden');
+            }
+        }
+
+        // Status message based on selected trip type
+        if (statusEl) {
+            if (tripType === 'round-trip') {
+                var roundTripRemain = effectiveRange - roundTripDist;
+                if (roundTripRemain > 2) {
+                    statusEl.textContent = '\u2705 Round trip OK \u2014 ' + Math.round(roundTripRemain) + ' mi spare';
+                    statusEl.className = 'battery-card-status battery-status-good';
+                } else if (effectiveRange - routeDistance > 0) {
+                    statusEl.textContent = '\u26A0\uFE0F Can reach dest, not enough for return';
+                    statusEl.className = 'battery-card-status battery-status-tight';
+                } else {
+                    statusEl.textContent = '\u274C Cannot reach destination';
+                    statusEl.className = 'battery-card-status battery-status-bad';
+                }
+            } else {
+                var oneWayRemain = effectiveRange - routeDistance;
+                if (oneWayRemain > 5) {
+                    statusEl.textContent = '\u2705 One way OK \u2014 ' + Math.round(oneWayRemain) + ' mi spare';
+                    statusEl.className = 'battery-card-status battery-status-good';
+                } else if (oneWayRemain > 0) {
+                    statusEl.textContent = '\u26A0\uFE0F Tight \u2014 ' + Math.round(oneWayRemain) + ' mi margin';
+                    statusEl.className = 'battery-card-status battery-status-tight';
+                } else {
+                    statusEl.textContent = '\u274C Cannot reach destination';
+                    statusEl.className = 'battery-card-status battery-status-bad';
+                }
             }
         }
 
@@ -2355,6 +2415,10 @@
             setTimeout(() => hud.classList.remove('entering'), 350);
         }
 
+        // Show floating speedometer
+        const floatSpeed = $('#floating-speedometer');
+        if (floatSpeed) floatSpeed.classList.remove('hidden');
+
         // Hide floating map nav button
         const mapNavBtn = $('#map-start-nav-btn');
         if (mapNavBtn) mapNavBtn.classList.add('hidden');
@@ -2411,6 +2475,10 @@
             hud.classList.add('hidden');
             hud.classList.remove('expanded');
         }
+
+        // Hide floating speedometer
+        const floatSpeed = $('#floating-speedometer');
+        if (floatSpeed) floatSpeed.classList.add('hidden');
 
         // Show legend again
         speedLegend.classList.remove('hidden');
@@ -2505,8 +2573,8 @@
     }
 
     function updateSpeedometer() {
-        const speedValEl = $('#nav-speedometer-val');
-        const speedometerEl = $('#nav-hud-speedometer');
+        const speedValEl = $('#floating-speed-val');
+        const speedometerEl = $('#floating-speedometer');
         if (!speedValEl || !speedometerEl) return;
 
         speedValEl.textContent = navCurrentSpeedMph;
@@ -2517,11 +2585,18 @@
             navCurrentSpeedLimit = navSpeedData[wpIdx] ? navSpeedData[wpIdx].mph : null;
         }
 
-        // Warning if over the speed limit
-        if (navCurrentSpeedLimit != null && navCurrentSpeedMph > navCurrentSpeedLimit) {
-            speedometerEl.classList.add('over-limit');
+        // Color coding: green = under limit, yellow = over by ≤5, red = over by >5
+        speedometerEl.classList.remove('speed-green', 'speed-yellow', 'speed-red');
+        if (navCurrentSpeedLimit != null) {
+            if (navCurrentSpeedMph <= navCurrentSpeedLimit) {
+                speedometerEl.classList.add('speed-green');
+            } else if (navCurrentSpeedMph <= navCurrentSpeedLimit + 5) {
+                speedometerEl.classList.add('speed-yellow');
+            } else {
+                speedometerEl.classList.add('speed-red');
+            }
         } else {
-            speedometerEl.classList.remove('over-limit');
+            speedometerEl.classList.add('speed-green');
         }
     }
 
@@ -2671,6 +2746,9 @@
             }
         }
 
+        // Update battery percentage after ride
+        updateBatteryAfterRide(actualDistMi, elevGainFt);
+
         $('#ride-stat-distance').textContent = actualDistMi.toFixed(1) + ' mi';
         $('#ride-stat-duration').textContent = durationStr;
         $('#ride-stat-avg-speed').textContent = avgSpeed + ' mph';
@@ -2679,6 +2757,23 @@
         $('#ride-stat-max-speed-road').textContent = rideMaxRoadSpeed != null ? rideMaxRoadSpeed + ' mph' : 'N/A';
 
         overlay.classList.remove('hidden');
+    }
+
+    function updateBatteryAfterRide(distanceMi, elevGainFt) {
+        const rangeInput = document.getElementById('wheel-range');
+        const battInput = document.getElementById('battery-pct');
+        if (!rangeInput || !battInput) return;
+
+        const wheelRange = parseFloat(rangeInput.value) || 30;
+        const currentBatteryPct = Math.min(100, Math.max(1, parseFloat(battInput.value) || 100));
+
+        // Calculate battery used based on distance and elevation
+        const elevPenaltyMi = (elevGainFt / 100) * 0.02 * wheelRange;
+        const effectiveDistMi = distanceMi + elevPenaltyMi;
+        const pctUsed = (effectiveDistMi / wheelRange) * 100;
+        const remainingPct = Math.max(0, Math.round(currentBatteryPct - pctUsed));
+
+        battInput.value = remainingPct;
     }
 
     // ===== Rate Limit Warning Toast =====
@@ -2722,6 +2817,142 @@
                 else if (used >= limit * 0.7) row.classList.add('warn');
             }
         });
+    }
+
+    // ===== Speed Limit Review Workflow =====
+    function showSpeedLimitReview() {
+        const sel = allRoutes[selectedRouteIdx];
+        if (!sel) return;
+
+        const speedData = sel.speedData;
+        const routeCoords = sel.routeCoords;
+
+        // Find unique unknown-speed road segments
+        const unknownRoads = [];
+        const seenNames = new Set();
+        for (let i = 0; i < speedData.length; i++) {
+            if (speedData[i].mph == null) {
+                const name = speedData[i].name || 'Unknown Road';
+                if (!seenNames.has(name)) {
+                    seenNames.add(name);
+                    unknownRoads.push({ name, startIdx: i });
+                }
+            }
+        }
+
+        // Also gather known speed roads for verification
+        const knownRoads = [];
+        const seenKnown = new Set();
+        for (let i = 0; i < speedData.length; i++) {
+            if (speedData[i].mph != null) {
+                const name = speedData[i].name || 'Road';
+                const key = name + '_' + speedData[i].mph;
+                if (!seenKnown.has(key)) {
+                    seenKnown.add(key);
+                    knownRoads.push({ name, mph: speedData[i].mph, startIdx: i });
+                }
+            }
+        }
+
+        const modal = $('#speed-review-modal');
+        const titleEl = $('#speed-review-title');
+        const descEl = $('#speed-review-desc');
+        const listEl = $('#speed-review-list');
+        if (!modal || !listEl) return;
+
+        listEl.innerHTML = '';
+
+        if (unknownRoads.length > 0) {
+            titleEl.textContent = 'Set Unknown Speed Limits';
+            descEl.textContent = 'Some roads on your route have unknown speed limits. Please set them below:';
+
+            unknownRoads.forEach((road) => {
+                const item = document.createElement('div');
+                item.className = 'speed-review-item';
+                item.innerHTML =
+                    '<span class="speed-review-item-name"><i class="fas fa-road" style="color: #95a5a6; margin-right: 6px;"></i>' + escapeHtml(road.name) + '</span>' +
+                    '<select class="speed-review-select" data-road-name="' + escapeHtml(road.name) + '" data-start-idx="' + road.startIdx + '">' +
+                    '<option value="">? mph</option>' +
+                    COMMON_SPEED_LIMITS.map(s => '<option value="' + s + '">' + s + ' mph</option>').join('') +
+                    '</select>';
+                listEl.appendChild(item);
+            });
+        } else {
+            titleEl.textContent = 'Verify Speed Limits';
+            descEl.textContent = 'All speed limits were found. Please verify they look correct:';
+
+            knownRoads.forEach((road) => {
+                const item = document.createElement('div');
+                item.className = 'speed-review-item';
+                item.innerHTML =
+                    '<span class="speed-review-item-name"><i class="fas fa-road" style="color: var(--accent-green); margin-right: 6px;"></i>' + escapeHtml(road.name) + '</span>' +
+                    '<select class="speed-review-select" data-road-name="' + escapeHtml(road.name) + '" data-start-idx="' + road.startIdx + '">' +
+                    COMMON_SPEED_LIMITS.map(s => '<option value="' + s + '"' + (s === road.mph ? ' selected' : '') + '>' + s + ' mph</option>').join('') +
+                    '</select>';
+                listEl.appendChild(item);
+            });
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    function applySpeedReview() {
+        const sel = allRoutes[selectedRouteIdx];
+        if (!sel) return;
+
+        const modal = $('#speed-review-modal');
+        const selects = document.querySelectorAll('.speed-review-select');
+
+        selects.forEach(select => {
+            const mph = parseInt(select.value, 10);
+            if (!mph) return;
+
+            const roadName = select.dataset.roadName;
+            const startIdx = parseInt(select.dataset.startIdx, 10);
+            const speedData = sel.speedData;
+            const routeCoords = sel.routeCoords;
+
+            // Apply to all route points matching this road name that are unknown or matching
+            const centerCoord = routeCoords[startIdx];
+            for (let i = 0; i < routeCoords.length; i++) {
+                const sd = speedData[i];
+                const sameName = sd && (sd.name === roadName || sd.name === 'Unknown');
+                const dist = haversineDistance(routeCoords[i], centerCoord);
+                if (sameName && dist < 2) { // within 2km of the selected section
+                    const key = routeCoords[i][0].toFixed(4) + ',' + routeCoords[i][1].toFixed(4);
+                    manualSpeedOverrides[key] = mph;
+                    speedData[i] = { mph, name: roadName, type: 'road' };
+                }
+            }
+        });
+
+        saveManualSpeedOverrides();
+
+        // Close modal
+        if (modal) modal.classList.add('hidden');
+
+        // Redraw route
+        clearRoute();
+        drawAllRoutes();
+
+        // Update info panels
+        const allSteps = sel.routeData.segments.flatMap(seg => seg.steps || []);
+        showRouteInfo(sel.routeData, sel.speedData, allSteps);
+
+        // Collapse sidebar and show map for navigation
+        if (!sidebar.classList.contains('collapsed')) {
+            toggleSidebar();
+        }
+    }
+
+    function skipSpeedReview() {
+        const modal = $('#speed-review-modal');
+        if (modal) modal.classList.add('hidden');
+
+        // Collapse sidebar and show map for navigation
+        if (!sidebar.classList.contains('collapsed')) {
+            toggleSidebar();
+        }
     }
 
     // ===== Start the app =====
@@ -2835,6 +3066,32 @@
                     updateRangeEstimate({ segments: [{ distance: navTotalDistanceMi }] }, navElevationData);
                 }
             });
+        }
+
+        // Trip type toggle
+        const tripOneWayBtn = $('#trip-one-way');
+        const tripRoundTripBtn = $('#trip-round-trip');
+        if (tripOneWayBtn && tripRoundTripBtn) {
+            tripOneWayBtn.addEventListener('click', () => {
+                tripType = 'one-way';
+                tripOneWayBtn.classList.add('active');
+                tripRoundTripBtn.classList.remove('active');
+            });
+            tripRoundTripBtn.addEventListener('click', () => {
+                tripType = 'round-trip';
+                tripRoundTripBtn.classList.add('active');
+                tripOneWayBtn.classList.remove('active');
+            });
+        }
+
+        // Speed review modal buttons
+        const speedReviewDone = $('#speed-review-done');
+        if (speedReviewDone) {
+            speedReviewDone.addEventListener('click', applySpeedReview);
+        }
+        const speedReviewSkip = $('#speed-review-skip');
+        if (speedReviewSkip) {
+            speedReviewSkip.addEventListener('click', skipSpeedReview);
         }
     });
 })();

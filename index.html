@@ -175,6 +175,18 @@
                 </div>
             </div>
 
+            <!-- Trip Type -->
+            <div class="sidebar-section">
+                <div class="trip-type-toggle">
+                    <button id="trip-one-way" class="trip-type-btn active" data-type="one-way">
+                        <i class="fas fa-long-arrow-alt-right"></i> One Way
+                    </button>
+                    <button id="trip-round-trip" class="trip-type-btn" data-type="round-trip">
+                        <i class="fas fa-exchange-alt"></i> Round Trip
+                    </button>
+                </div>
+            </div>
+
             <!-- Find Route Button -->
             <div class="sidebar-section">
                 <button id="find-route-btn" class="btn btn-primary btn-full">
@@ -264,6 +276,11 @@
             <i class="fas fa-chevron-left"></i>
         </button>
 
+        <!-- Fullscreen Toggle Button -->
+        <button id="fullscreen-btn" class="fullscreen-btn" title="Toggle fullscreen">
+            <i class="fas fa-expand"></i>
+        </button>
+
         <!-- Map Container -->
         <div id="map"></div>
 
@@ -299,6 +316,12 @@
             <div class="legend-item"><span class="legend-color" style="background: #95a5a6;"></span> Unknown</div>
         </div>
 
+        <!-- Floating Speedometer (above nav HUD, right side) -->
+        <div id="floating-speedometer" class="floating-speedometer hidden">
+            <div class="floating-speed-value" id="floating-speed-val">0</div>
+            <div class="floating-speed-unit">mph</div>
+        </div>
+
         <!-- Navigation HUD -->
         <div id="nav-hud" class="nav-hud hidden">
             <!-- Drag handle to slide up -->
@@ -322,10 +345,6 @@
                 </button>
             </div>
             <div class="nav-hud-bottom">
-                <div class="nav-hud-speedometer" id="nav-hud-speedometer">
-                    <span class="speedometer-value" id="nav-speedometer-val">0</span>
-                    <span class="speedometer-unit">mph</span>
-                </div>
                 <div class="nav-hud-eta">
                     <i class="fas fa-clock"></i>
                     <span id="nav-hud-eta">—</span>
@@ -405,6 +424,21 @@
                         <span class="ride-stat-label">Max Road Speed</span>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Speed Limit Review Modal -->
+        <div id="speed-review-modal" class="speed-limit-modal hidden">
+            <div class="speed-limit-modal-content" style="max-width: 420px;">
+                <h3><i class="fas fa-tachometer-alt"></i> <span id="speed-review-title">Set Unknown Speed Limits</span></h3>
+                <p id="speed-review-desc">Some roads on your route have unknown speed limits. Please set them below:</p>
+                <div id="speed-review-list" class="speed-review-list"></div>
+                <button id="speed-review-done" class="btn btn-primary btn-full" style="margin-top: 14px;">
+                    <i class="fas fa-check"></i> Done — Start Navigation
+                </button>
+                <button id="speed-review-skip" class="btn btn-sm btn-full" style="margin-top: 8px;">
+                    <i class="fas fa-forward"></i> Skip &amp; Navigate
+                </button>
             </div>
         </div>
 
