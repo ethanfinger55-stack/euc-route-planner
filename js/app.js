@@ -192,12 +192,15 @@
     let bleV2StateCon = 0;
     let bleV2UpdateStep = 0;
 
-    // BLE constants
-    const BLE_INMOTION_SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
-    const BLE_INMOTION_NOTIFY = '0000ffe4-0000-1000-8000-00805f9b34fb';
-    const BLE_INMOTION_WRITE_SERVICE = '0000ffe5-0000-1000-8000-00805f9b34fb';
-    const BLE_INMOTION_WRITE_CHAR = '0000ffe9-0000-1000-8000-00805f9b34fb';
-    const BLE_DESCRIPTOR = '00002902-0000-1000-8000-00805f9b34fb';
+    // BLE constants — V1 UUIDs (V5/V8/V10 series)
+    const BLE_V1_SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+    const BLE_V1_NOTIFY = '0000ffe4-0000-1000-8000-00805f9b34fb';
+    const BLE_V1_WRITE_SERVICE = '0000ffe5-0000-1000-8000-00805f9b34fb';
+    const BLE_V1_WRITE_CHAR = '0000ffe9-0000-1000-8000-00805f9b34fb';
+    // BLE constants — V2 UUIDs / Nordic UART Service (V9/V11/V12/V13/V14/P6)
+    const BLE_V2_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const BLE_V2_WRITE = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+    const BLE_V2_READ = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
@@ -3120,9 +3123,13 @@
 
         try {
             updateBleStatus('scanning');
+            // Accept both V2 (NUS) and V1 UUIDs so the picker shows any InMotion wheel
             bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [{ services: [BLE_INMOTION_SERVICE] }],
-                optionalServices: [BLE_INMOTION_WRITE_SERVICE]
+                filters: [
+                    { services: [BLE_V2_SERVICE] },
+                    { services: [BLE_V1_SERVICE] }
+                ],
+                optionalServices: [BLE_V1_WRITE_SERVICE]
             });
 
             bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
@@ -3130,17 +3137,30 @@
 
             bleServer = await bleDevice.gatt.connect();
 
-            // Get notify service and characteristic
-            const notifyService = await bleServer.getPrimaryService(BLE_INMOTION_SERVICE);
-            bleNotifyChar = await notifyService.getCharacteristic(BLE_INMOTION_NOTIFY);
-
-            // Get write service and characteristic
+            // Try V2 (NUS) UUIDs first, then fall back to V1
+            let connected = false;
             try {
-                const writeService = await bleServer.getPrimaryService(BLE_INMOTION_WRITE_SERVICE);
-                bleWriteChar = await writeService.getCharacteristic(BLE_INMOTION_WRITE_CHAR);
+                const nusService = await bleServer.getPrimaryService(BLE_V2_SERVICE);
+                bleNotifyChar = await nusService.getCharacteristic(BLE_V2_READ);
+                bleWriteChar = await nusService.getCharacteristic(BLE_V2_WRITE);
+                bleProtocol = 'v2';
+                connected = true;
+                console.log('Connected via V2 (NUS) UUIDs');
             } catch (e) {
-                console.warn('Write characteristic not found, trying single-service mode');
-                bleWriteChar = null;
+                console.log('V2 service not found, trying V1 UUIDs');
+            }
+
+            if (!connected) {
+                const notifyService = await bleServer.getPrimaryService(BLE_V1_SERVICE);
+                bleNotifyChar = await notifyService.getCharacteristic(BLE_V1_NOTIFY);
+                try {
+                    const writeService = await bleServer.getPrimaryService(BLE_V1_WRITE_SERVICE);
+                    bleWriteChar = await writeService.getCharacteristic(BLE_V1_WRITE_CHAR);
+                } catch (e) {
+                    console.warn('V1 write characteristic not found');
+                    bleWriteChar = null;
+                }
+                bleProtocol = 'v2'; // still uses V2 message framing
             }
 
             // Subscribe to notifications
