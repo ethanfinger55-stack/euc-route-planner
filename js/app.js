@@ -120,6 +120,7 @@
     let endMarker = null;
     let activeInput = null; // which input is being geocoded
     let debounceTimer = null;
+    let pickingDestOnMap = false; // true when user is picking destination on map
 
     // Navigation state
     let navActive = false;
@@ -292,6 +293,22 @@
             endInput.value = '';
             endCoords = null;
         });
+
+        // Pick destination on map button
+        const pickDestBtn = $('#pick-dest-btn');
+        if (pickDestBtn) {
+            pickDestBtn.addEventListener('click', () => {
+                pickingDestOnMap = true;
+                // Clear any existing destination
+                endInput.value = '';
+                endCoords = null;
+                if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+                // Collapse sidebar so user can tap the map
+                if (!sidebar.classList.contains('collapsed')) {
+                    toggleSidebar();
+                }
+            });
+        }
 
         // Clear all fields button
         const clearAllBtn = $('#clear-all-btn');
@@ -514,6 +531,19 @@
     // ===== Map Click Handling =====
     function handleMapClick(e) {
         const coords = [e.latlng.lat, e.latlng.lng];
+
+        if (pickingDestOnMap) {
+            pickingDestOnMap = false;
+            endCoords = coords;
+            placeEndMarker(coords);
+            endInput.value = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
+            reverseGeocode(coords).then(addr => { if (addr) endInput.value = addr; });
+            // Re-open sidebar
+            if (sidebar.classList.contains('collapsed')) {
+                toggleSidebar();
+            }
+            return;
+        }
 
         if (!startCoords) {
             startCoords = coords;
