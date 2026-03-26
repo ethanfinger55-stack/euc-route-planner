@@ -1372,10 +1372,13 @@
         const west = Math.min(...lngs) - 0.005;
         const east = Math.max(...lngs) + 0.005;
 
-        // Overpass query for roads with speed limits in the bounding box
+        // Overpass query for roads with speed limits AND named roads without speed limits
         const query = `
             [out:json][timeout:30];
-            way["maxspeed"](${south},${west},${north},${east});
+            (
+              way["maxspeed"](${south},${west},${north},${east});
+              way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|service)$"]["name"](${south},${west},${north},${east});
+            );
             out body geom;
         `;
 
@@ -1393,9 +1396,8 @@
             const roads = [];
             if (data.elements) {
                 data.elements.forEach(el => {
-                    if (el.type === 'way' && el.tags && el.tags.maxspeed && el.geometry) {
-                        const speedStr = el.tags.maxspeed;
-                        const mph = parseSpeedLimit(speedStr);
+                    if (el.type === 'way' && el.tags && el.geometry) {
+                        const mph = el.tags.maxspeed ? parseSpeedLimit(el.tags.maxspeed) : null;
                         const roadName = el.tags.name || el.tags.ref || 'Unnamed Road';
                         const roadType = el.tags.highway || 'road';
                         const geom = el.geometry.map(n => [n.lat, n.lon]);
@@ -1435,19 +1437,31 @@
             }
 
             let bestDist = Infinity;
-            let bestRoad = { mph: null, name: 'Unknown', type: 'road' };
+            let bestRoad = null;
+            let bestNameDist = Infinity;
+            let bestNameRoad = null;
 
             for (const road of roads) {
                 for (const rp of road.geometry) {
                     const dist = haversineDistance(point, rp);
-                    if (dist < bestDist && dist < 0.05) { // within ~50m
-                        bestDist = dist;
-                        bestRoad = { mph: road.mph, name: road.name, type: road.type };
+                    if (dist < 0.05) { // within ~50m
+                        // Track closest road with speed data
+                        if (road.mph != null && dist < bestDist) {
+                            bestDist = dist;
+                            bestRoad = { mph: road.mph, name: road.name, type: road.type };
+                        }
+                        // Track closest named road (may or may not have speed)
+                        if (dist < bestNameDist) {
+                            bestNameDist = dist;
+                            bestNameRoad = { mph: road.mph, name: road.name, type: road.type };
+                        }
                     }
                 }
             }
 
-            return bestRoad;
+            if (bestRoad) return bestRoad;
+            if (bestNameRoad) return bestNameRoad;
+            return { mph: null, name: 'Unknown', type: 'road' };
         });
     }
 
@@ -1585,6 +1599,9 @@
         // Speed breakdown chart
         buildSpeedBreakdown(speedData);
 
+        // Road speed editor
+        buildRoadSpeedEditor(speedData);
+
         // Directions
         buildDirections(stepsToShow, speedData, routeData);
 
@@ -1636,6 +1653,95 @@
             `;
             container.appendChild(item);
         });
+    }
+
+    function buildRoadSpeedEditor(speedData) {
+        const container = $('#road-speed-editor');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const sel = allRoutes[selectedRouteIdx];
+        if (!sel) {
+            container.innerHTML = '<p class="road-speed-editor-empty">Find a route first</p>';
+            return;
+        }
+
+        // Collect unique roads with their speed and index
+        const roads = [];
+        const seenKeys = new Set();
+        for (let i = 0; i < speedData.length; i++) {
+            const name = speedData[i].name || 'Unknown Road';
+            const mph = speedData[i].mph;
+            const key = name + '_' + (mph != null ? mph : '?');
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                roads.push({ name, mph, startIdx: i });
+            }
+        }
+
+        if (roads.length === 0) {
+            container.innerHTML = '<p class="road-speed-editor-empty">No roads on route</p>';
+            return;
+        }
+
+        roads.forEach(road => {
+            const item = document.createElement('div');
+            item.className = 'road-speed-editor-item';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'road-name';
+            nameSpan.title = road.name;
+            nameSpan.textContent = road.name;
+
+            const select = document.createElement('select');
+            select.innerHTML = '<option value="">' + (road.mph != null ? '' : '? mph') + '</option>' +
+                COMMON_SPEED_LIMITS.map(s => '<option value="' + s + '"' + (s === road.mph ? ' selected' : '') + '>' + s + ' mph</option>').join('');
+
+            select.addEventListener('change', function () {
+                const newMph = parseInt(this.value, 10);
+                if (!newMph) return;
+                applyRoadSpeedEdit(road.name, road.startIdx, newMph);
+            });
+
+            item.appendChild(nameSpan);
+            item.appendChild(select);
+            container.appendChild(item);
+        });
+    }
+
+    function applyRoadSpeedEdit(roadName, startIdx, mph) {
+        const sel = allRoutes[selectedRouteIdx];
+        if (!sel) return;
+
+        const speedData = sel.speedData;
+        const routeCoords = sel.routeCoords;
+        const centerCoord = routeCoords[startIdx];
+
+        for (let i = 0; i < routeCoords.length; i++) {
+            const sd = speedData[i];
+            const sameName = sd && (sd.name === roadName || sd.name === 'Unknown');
+            const dist = haversineDistance(routeCoords[i], centerCoord);
+            if (sameName && dist < 2) {
+                const key = routeCoords[i][0].toFixed(4) + ',' + routeCoords[i][1].toFixed(4);
+                manualSpeedOverrides[key] = mph;
+                speedData[i] = { mph, name: roadName, type: 'road' };
+            }
+        }
+
+        saveManualSpeedOverrides();
+
+        // Redraw route
+        clearRoute();
+        drawAllRoutes();
+
+        // Re-show Go button
+        const mapNavBtn = $('#map-start-nav-btn');
+        if (mapNavBtn) mapNavBtn.classList.remove('hidden');
+        updateBatteryCard(sel.routeData, sel.elevationData);
+
+        // Update info panels
+        const allSteps = sel.routeData.segments.flatMap(seg => seg.steps || []);
+        showRouteInfo(sel.routeData, sel.speedData, allSteps);
     }
 
     function buildDirections(steps, speedData, routeData) {
@@ -2938,6 +3044,11 @@
         // Update info panels
         const allSteps = sel.routeData.segments.flatMap(seg => seg.steps || []);
         showRouteInfo(sel.routeData, sel.speedData, allSteps);
+
+        // Re-show Go button and battery card
+        const mapNavBtn = $('#map-start-nav-btn');
+        if (mapNavBtn) mapNavBtn.classList.remove('hidden');
+        updateBatteryCard(sel.routeData, sel.elevationData);
 
         // Collapse sidebar and show map for navigation
         if (!sidebar.classList.contains('collapsed')) {

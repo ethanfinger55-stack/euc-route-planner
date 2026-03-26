@@ -1640,7 +1640,7 @@ input[type="checkbox"] {
 /* ===== Floating Speedometer (above nav HUD) ===== */
 .floating-speedometer {
     position: fixed;
-    bottom: 160px;
+    bottom: 200px;
     right: 16px;
     z-index: 1600;
     display: flex;
@@ -1786,6 +1786,53 @@ input[type="checkbox"] {
 
 .speed-review-item .speed-verified:hover {
     background: rgba(46, 204, 113, 0.25);
+}
+
+/* ===== Road Speed Editor (Sidebar) ===== */
+.road-speed-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.road-speed-editor-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+}
+
+.road-speed-editor-item .road-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.road-speed-editor-item select {
+    padding: 4px 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 72px;
+}
+
+.road-speed-editor-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 8px 0;
 }
 
 /* ===== Speed Limit Update Modal ===== */
@@ -2058,7 +2105,7 @@ input[type="checkbox"] {
 .fullscreen-btn {
     position: fixed;
     top: 12px;
-    left: calc(var(--sidebar-width) + 12px);
+    left: calc(var(--sidebar-width) + 60px);
     z-index: 1500;
     width: 44px;
     height: 44px;
@@ -2076,7 +2123,7 @@ input[type="checkbox"] {
 }
 
 .sidebar.collapsed ~ .fullscreen-btn {
-    left: 12px;
+    left: 60px;
 }
 
 .fullscreen-btn:hover {
@@ -2158,7 +2205,7 @@ input[type="checkbox"] {
     /* ----- Fullscreen button mobile ----- */
     .fullscreen-btn {
         top: calc(12px + env(safe-area-inset-top));
-        left: 12px;
+        left: 70px;
         width: 48px;
         height: 48px;
         font-size: 20px;
@@ -2495,7 +2542,7 @@ input[type="checkbox"] {
     .floating-speedometer {
         width: 100px;
         height: 100px;
-        bottom: 170px;
+        bottom: 210px;
         right: 12px;
     }
 
