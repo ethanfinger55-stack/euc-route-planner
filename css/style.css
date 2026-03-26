@@ -537,17 +537,15 @@ input[type="checkbox"] {
 }
 
 .speed-dropdown {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    margin-top: 4px;
+    position: fixed;
     background: var(--bg-sidebar);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    z-index: 100;
+    z-index: 10000;
     min-width: 90px;
-    overflow: hidden;
+    max-height: 200px;
+    overflow-y: auto;
 }
 
 .speed-dropdown-item {

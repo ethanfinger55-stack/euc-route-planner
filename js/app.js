@@ -1665,8 +1665,19 @@
             dropdown.appendChild(item);
         });
 
-        badgeEl.style.position = 'relative';
-        badgeEl.appendChild(dropdown);
+        // Position dropdown fixed near the badge
+        document.body.appendChild(dropdown);
+        var rect = badgeEl.getBoundingClientRect();
+        dropdown.style.top = (rect.bottom + 4) + 'px';
+        dropdown.style.right = (window.innerWidth - rect.right) + 'px';
+
+        // Flip above if not enough room below
+        requestAnimationFrame(function () {
+            var dRect = dropdown.getBoundingClientRect();
+            if (dRect.bottom > window.innerHeight) {
+                dropdown.style.top = (rect.top - dRect.height - 4) + 'px';
+            }
+        });
 
         // Close when clicking outside
         const closeHandler = function (e) {
