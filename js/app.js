@@ -162,6 +162,43 @@
     let allRoutes = []; // array of { routeData, routeCoords, speedData, elevationData, label, highSpeedPct }
     let selectedRouteIdx = 0;
 
+    // ===== Bluetooth EUC State =====
+    let bleDevice = null;
+    let bleServer = null;
+    let bleNotifyChar = null;
+    let bleWriteChar = null;
+    let bleConnected = false;
+    let bleKeepAliveTimer = null;
+    let bleModel = 'Unknown';
+    let bleProtocol = 'v2'; // 'v1' or 'v2'
+    let bleWheelData = {
+        speed: 0,        // km/h * 100
+        voltage: 0,      // V * 100
+        current: 0,      // A * 100
+        battery: 0,      // 0-100
+        temperature: 0,  // °C * 100
+        temperature2: 0, // °C * 100
+        distance: 0,     // meters
+        power: 0,        // watts
+        speedMph: 0,     // mph (calculated)
+        pwm: 0           // load %
+    };
+    let bleSpeedSource = 'gps'; // 'gps' or 'wheel'
+    let bleUnpackerState = 'unknown';
+    let bleUnpackerBuffer = [];
+    let bleUnpackerOldc = 0;
+    let bleV2UnpackerLen = 0;
+    let bleV2UnpackerFlags = 0;
+    let bleV2StateCon = 0;
+    let bleV2UpdateStep = 0;
+
+    // BLE constants
+    const BLE_INMOTION_SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+    const BLE_INMOTION_NOTIFY = '0000ffe4-0000-1000-8000-00805f9b34fb';
+    const BLE_INMOTION_WRITE_SERVICE = '0000ffe5-0000-1000-8000-00805f9b34fb';
+    const BLE_INMOTION_WRITE_CHAR = '0000ffe9-0000-1000-8000-00805f9b34fb';
+    const BLE_DESCRIPTOR = '00002902-0000-1000-8000-00805f9b34fb';
+
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
     const apiKeyInput = $('#api-key-input');
@@ -3066,6 +3103,410 @@
         }
     }
 
+    // ===== Bluetooth EUC Connection =====
+    function isBleSupported() {
+        return navigator.bluetooth != null;
+    }
+
+    async function connectWheel() {
+        if (!isBleSupported()) {
+            alert('Web Bluetooth is not supported in this browser. Use Chrome or Edge on Android/Desktop.');
+            return;
+        }
+        if (bleConnected) {
+            disconnectWheel();
+            return;
+        }
+
+        try {
+            updateBleStatus('scanning');
+            bleDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ services: [BLE_INMOTION_SERVICE] }],
+                optionalServices: [BLE_INMOTION_WRITE_SERVICE]
+            });
+
+            bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+            updateBleStatus('connecting');
+
+            bleServer = await bleDevice.gatt.connect();
+
+            // Get notify service and characteristic
+            const notifyService = await bleServer.getPrimaryService(BLE_INMOTION_SERVICE);
+            bleNotifyChar = await notifyService.getCharacteristic(BLE_INMOTION_NOTIFY);
+
+            // Get write service and characteristic
+            try {
+                const writeService = await bleServer.getPrimaryService(BLE_INMOTION_WRITE_SERVICE);
+                bleWriteChar = await writeService.getCharacteristic(BLE_INMOTION_WRITE_CHAR);
+            } catch (e) {
+                console.warn('Write characteristic not found, trying single-service mode');
+                bleWriteChar = null;
+            }
+
+            // Subscribe to notifications
+            await bleNotifyChar.startNotifications();
+            bleNotifyChar.addEventListener('characteristicvaluechanged', onBleData);
+
+            bleConnected = true;
+            bleV2StateCon = 0;
+            bleV2UpdateStep = 0;
+            bleUnpackerState = 'unknown';
+            bleUnpackerBuffer = [];
+            bleUnpackerOldc = 0;
+
+            updateBleStatus('connected');
+            startBleKeepAlive();
+
+        } catch (err) {
+            console.warn('BLE connection error:', err);
+            if (err.name !== 'NotFoundError') { // User cancelled picker
+                updateBleStatus('error');
+            } else {
+                updateBleStatus('disconnected');
+            }
+        }
+    }
+
+    function disconnectWheel() {
+        if (bleKeepAliveTimer) {
+            clearInterval(bleKeepAliveTimer);
+            bleKeepAliveTimer = null;
+        }
+        if (bleNotifyChar) {
+            try { bleNotifyChar.removeEventListener('characteristicvaluechanged', onBleData); } catch(e) {}
+        }
+        if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
+            bleDevice.gatt.disconnect();
+        }
+        bleConnected = false;
+        bleDevice = null;
+        bleServer = null;
+        bleNotifyChar = null;
+        bleWriteChar = null;
+        bleModel = 'Unknown';
+        bleWheelData = { speed: 0, voltage: 0, current: 0, battery: 0, temperature: 0, temperature2: 0, distance: 0, power: 0, speedMph: 0, pwm: 0 };
+        updateBleStatus('disconnected');
+        updateBleTelemetry();
+    }
+
+    function onBleDisconnected() {
+        bleConnected = false;
+        if (bleKeepAliveTimer) {
+            clearInterval(bleKeepAliveTimer);
+            bleKeepAliveTimer = null;
+        }
+        updateBleStatus('disconnected');
+    }
+
+    function updateBleStatus(status) {
+        const btn = $('#ble-connect-btn');
+        const statusEl = $('#ble-status-text');
+        const indicator = $('#ble-status-indicator');
+        if (!btn) return;
+
+        switch (status) {
+            case 'scanning':
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+                btn.disabled = true;
+                if (statusEl) statusEl.textContent = 'Scanning...';
+                if (indicator) indicator.className = 'ble-status-dot scanning';
+                break;
+            case 'connecting':
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+                btn.disabled = true;
+                if (statusEl) statusEl.textContent = 'Connecting...';
+                if (indicator) indicator.className = 'ble-status-dot connecting';
+                break;
+            case 'connected':
+                btn.innerHTML = '<i class="fas fa-link"></i> Disconnect';
+                btn.disabled = false;
+                btn.classList.add('ble-connected');
+                if (statusEl) statusEl.textContent = bleModel || 'Connected';
+                if (indicator) indicator.className = 'ble-status-dot connected';
+                break;
+            case 'disconnected':
+                btn.innerHTML = '<i class="fab fa-bluetooth-b"></i> Connect Wheel';
+                btn.disabled = false;
+                btn.classList.remove('ble-connected');
+                if (statusEl) statusEl.textContent = 'Not connected';
+                if (indicator) indicator.className = 'ble-status-dot disconnected';
+                break;
+            case 'error':
+                btn.innerHTML = '<i class="fab fa-bluetooth-b"></i> Connect Wheel';
+                btn.disabled = false;
+                btn.classList.remove('ble-connected');
+                if (statusEl) statusEl.textContent = 'Connection failed';
+                if (indicator) indicator.className = 'ble-status-dot disconnected';
+                break;
+        }
+
+        // Show/hide telemetry panel
+        const telPanel = $('#ble-telemetry');
+        if (telPanel) {
+            telPanel.classList.toggle('hidden', status !== 'connected');
+        }
+    }
+
+    // ===== BLE Protocol: InMotion V2 =====
+    function startBleKeepAlive() {
+        if (bleKeepAliveTimer) clearInterval(bleKeepAliveTimer);
+        bleV2StateCon = 0;
+        bleV2UpdateStep = 0;
+
+        bleKeepAliveTimer = setInterval(() => {
+            if (!bleConnected || !bleWriteChar) return;
+
+            if (bleV2UpdateStep === 0) {
+                let msg;
+                if (bleV2StateCon === 0) {
+                    msg = bleV2BuildMsg(0x11, 0x02, [0x01]); // getCarType
+                } else if (bleV2StateCon === 1) {
+                    msg = bleV2BuildMsg(0x11, 0x02, [0x02]); // getSerialNumber
+                } else if (bleV2StateCon === 2) {
+                    msg = bleV2BuildMsg(0x11, 0x02, [0x06]); // getVersions
+                    bleV2StateCon++;
+                } else if (bleV2StateCon === 3) {
+                    msg = bleV2BuildMsg(0x14, 0x20, [0x20]); // getSettings
+                    bleV2StateCon++;
+                } else {
+                    msg = bleV2BuildMsg(0x14, 0x04, []); // getRealTimeData
+                    bleV2StateCon = 4;
+                }
+
+                if (msg) {
+                    bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg)).catch(e => {
+                        console.warn('BLE write error:', e);
+                    });
+                }
+            }
+
+            bleV2UpdateStep = (bleV2UpdateStep + 1) % 10;
+        }, 100); // 100ms intervals (less aggressive than native app's 25ms)
+    }
+
+    function bleV2BuildMsg(flags, command, data) {
+        const len = data.length + 1;
+        const payload = [flags, len, command, ...data];
+
+        // Calculate XOR checksum
+        let check = 0;
+        for (const b of payload) check = (check ^ b) & 0xFF;
+
+        // Escape 0xAA and 0xA5 in payload
+        const escaped = [];
+        for (const b of payload) {
+            if (b === 0xAA || b === 0xA5) escaped.push(0xA5);
+            escaped.push(b);
+        }
+
+        return [0xAA, 0xAA, ...escaped, check];
+    }
+
+    function onBleData(event) {
+        const data = new Uint8Array(event.target.value.buffer);
+        for (const c of data) {
+            if (bleV2AddChar(c)) {
+                const buf = new Uint8Array(bleUnpackerBuffer);
+                bleV2ParseMessage(buf);
+                bleUnpackerBuffer = [];
+                bleUnpackerState = 'unknown';
+            }
+        }
+    }
+
+    function bleV2AddChar(c) {
+        const ca5 = (bleUnpackerOldc === 0xA5);
+
+        if (c !== 0xA5 || ca5) {
+            switch (bleUnpackerState) {
+                case 'collecting':
+                    bleUnpackerBuffer.push(c);
+                    if (bleUnpackerBuffer.length === bleV2UnpackerLen + 5) {
+                        bleUnpackerState = 'done';
+                        bleUnpackerOldc = 0;
+                        return true;
+                    }
+                    break;
+                case 'lensearch':
+                    bleUnpackerBuffer.push(c);
+                    bleV2UnpackerLen = c & 0xFF;
+                    bleUnpackerState = 'collecting';
+                    break;
+                case 'flagsearch':
+                    bleUnpackerBuffer.push(c);
+                    bleV2UnpackerFlags = c & 0xFF;
+                    bleUnpackerState = 'lensearch';
+                    break;
+                default:
+                    if (c === 0xAA && bleUnpackerOldc === 0xAA) {
+                        bleUnpackerBuffer = [0xAA, 0xAA];
+                        bleUnpackerState = 'flagsearch';
+                    }
+                    break;
+            }
+            bleUnpackerOldc = c;
+        } else {
+            bleUnpackerOldc = c;
+        }
+        return false;
+    }
+
+    function bleV2ParseMessage(buf) {
+        if (buf.length < 6) return;
+
+        // Verify checksum
+        const payload = buf.slice(2, buf.length - 1);
+        let check = 0;
+        for (const b of payload) check = (check ^ b) & 0xFF;
+        if (check !== buf[buf.length - 1]) return;
+
+        const flags = payload[0];
+        const len = payload[1];
+        const command = payload[2] & 0x7F;
+        const data = payload.slice(3);
+
+        if (flags === 0x11) {
+            // Initial data
+            if (command === 0x02 && data.length > 0) {
+                if (data[0] === 0x01 && data.length >= 7) {
+                    // Car type
+                    const series = data[2];
+                    const type = data[3];
+                    bleModel = bleGetModelName(series, type);
+                    bleV2StateCon++;
+                    const statusEl = $('#ble-status-text');
+                    if (statusEl) statusEl.textContent = bleModel;
+                } else if (data[0] === 0x02 && data.length >= 17) {
+                    // Serial number
+                    bleV2StateCon++;
+                }
+            }
+        } else if (flags === 0x14) {
+            if (command === 0x04 && data.length >= 20) {
+                // RealTimeInfo - parse speed, voltage, current, battery, temps
+                bleParseRealTimeV2(data);
+            }
+        }
+    }
+
+    function bleParseRealTimeV2(data) {
+        const shortLE = (d, i) => (d.length > i + 1) ? (d[i] | (d[i+1] << 8)) : 0;
+        const signedShortLE = (d, i) => {
+            const v = shortLE(d, i);
+            return v > 32767 ? v - 65536 : v;
+        };
+
+        const voltage = shortLE(data, 0);
+        const current = signedShortLE(data, 2);
+        const speed = signedShortLE(data, 8);
+        const batPower = signedShortLE(data, 16);
+
+        let batLevel, mosTemp;
+
+        // Different parsing based on data length (varies by model)
+        if (data.length >= 50) {
+            // V13/V14/V11Y format
+            batLevel = Math.round((shortLE(data, 34) + shortLE(data, 36)) / 200.0);
+            mosTemp = data.length > 58 ? (data[58] & 0xFF) + 80 - 256 : 0;
+        } else if (data.length >= 30) {
+            // V12/V11 1.4+ format
+            batLevel = data.length > 28 ? Math.round(shortLE(data, 28) / 100.0) : 0;
+            mosTemp = data.length > 42 ? (data[42] & 0xFF) + 80 - 256 : 0;
+        } else {
+            // V11 original format
+            batLevel = data.length > 16 ? (data[16] & 0x7F) : 0;
+            mosTemp = data.length > 17 ? (data[17] & 0xFF) + 80 - 256 : 0;
+        }
+
+        bleWheelData.speed = Math.abs(speed);
+        bleWheelData.voltage = voltage;
+        bleWheelData.current = current;
+        bleWheelData.battery = Math.max(0, Math.min(100, batLevel));
+        bleWheelData.temperature = mosTemp * 100;
+        bleWheelData.power = Math.abs(batPower);
+        bleWheelData.speedMph = Math.round(Math.abs(speed / 100.0) * 0.621371);
+
+        // Auto-sync battery to app input
+        if (bleWheelData.battery > 0) {
+            const battInput = document.getElementById('battery-pct');
+            if (battInput && Math.abs(parseInt(battInput.value) - bleWheelData.battery) > 2) {
+                battInput.value = bleWheelData.battery;
+            }
+        }
+
+        // Update speedometer if wheel speed is selected
+        if (bleSpeedSource === 'wheel' && navActive) {
+            navCurrentSpeedMph = bleWheelData.speedMph;
+            updateSpeedometer();
+        }
+
+        updateBleTelemetry();
+    }
+
+    function bleGetModelName(series, type) {
+        const models = {
+            61: 'Inmotion V11', 62: 'Inmotion V11Y',
+            71: 'Inmotion V12 HS', 72: 'Inmotion V12 HT', 73: 'Inmotion V12 PRO',
+            81: 'Inmotion V13', 82: 'Inmotion V13 PRO',
+            91: 'Inmotion V14 50GB', 92: 'Inmotion V14 50S',
+            111: 'Inmotion V12S', 121: 'Inmotion V9'
+        };
+        const key = series * 10 + type;
+        return models[key] || ('Inmotion ' + series + '.' + type);
+    }
+
+    function updateBleTelemetry() {
+        const speedEl = $('#ble-tel-speed');
+        const battEl = $('#ble-tel-battery');
+        const voltEl = $('#ble-tel-voltage');
+        const tempEl = $('#ble-tel-temp');
+        const powerEl = $('#ble-tel-power');
+
+        if (speedEl) speedEl.textContent = bleWheelData.speedMph + ' mph';
+        if (battEl) battEl.textContent = bleWheelData.battery + '%';
+        if (voltEl) voltEl.textContent = (bleWheelData.voltage / 100).toFixed(1) + 'V';
+        if (tempEl) tempEl.textContent = (bleWheelData.temperature / 100).toFixed(0) + '°C';
+        if (powerEl) powerEl.textContent = bleWheelData.power + 'W';
+
+        // Update speed source label on speedometer
+        const srcLabel = $('#speed-source-label');
+        if (srcLabel) {
+            srcLabel.textContent = bleSpeedSource === 'wheel' ? 'WHEEL' : 'GPS';
+        }
+    }
+
+    function toggleSpeedSource() {
+        if (!bleConnected) return; // Can only toggle if wheel connected
+        bleSpeedSource = bleSpeedSource === 'gps' ? 'wheel' : 'gps';
+        localStorage.setItem('euc_speed_source', bleSpeedSource);
+        updateBleTelemetry();
+
+        // If switching to GPS, restore GPS speed
+        if (bleSpeedSource === 'gps') {
+            // Speed will be updated on next GPS position callback
+        }
+    }
+
+    async function bleToggleLight() {
+        if (!bleConnected || !bleWriteChar) return;
+        const msg = bleV2BuildMsg(0x14, 0x60, [0x50, 0x01]); // setLight(true) toggle
+        try {
+            await bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg));
+        } catch (e) {
+            console.warn('BLE light toggle error:', e);
+        }
+    }
+
+    async function blePlayBeep() {
+        if (!bleConnected || !bleWriteChar) return;
+        const msg = bleV2BuildMsg(0x14, 0x60, [0x51, 0x02, 0x64]); // playBeep
+        try {
+            await bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg));
+        } catch (e) {
+            console.warn('BLE beep error:', e);
+        }
+    }
+
     // ===== Start the app =====
     document.addEventListener('DOMContentLoaded', () => {
         init();
@@ -3204,5 +3645,26 @@
         if (speedReviewSkip) {
             speedReviewSkip.addEventListener('click', skipSpeedReview);
         }
+
+        // BLE connect button
+        const bleBtn = $('#ble-connect-btn');
+        if (bleBtn) {
+            bleBtn.addEventListener('click', connectWheel);
+        }
+        // BLE control buttons
+        const bleLightBtn = $('#ble-light-btn');
+        if (bleLightBtn) bleLightBtn.addEventListener('click', bleToggleLight);
+        const bleBeepBtn = $('#ble-beep-btn');
+        if (bleBeepBtn) bleBeepBtn.addEventListener('click', blePlayBeep);
+
+        // Speedometer tap to toggle speed source
+        const speedo = $('#floating-speedometer');
+        if (speedo) {
+            speedo.addEventListener('click', toggleSpeedSource);
+        }
+
+        // Restore saved speed source preference
+        const savedSpeedSource = localStorage.getItem('euc_speed_source');
+        if (savedSpeedSource) bleSpeedSource = savedSpeedSource;
     });
 })();

@@ -2690,3 +2690,125 @@ input[type="checkbox"] {
         font-size: 16px;
     }
 }
+
+/* ===== BLE / Connect EUC ===== */
+.ble-btn {
+    background: linear-gradient(135deg, #0082fc, #0056d2);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background .2s;
+}
+.ble-btn:hover {
+    background: linear-gradient(135deg, #339dff, #0068e8);
+}
+.ble-btn.ble-connected {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+.ble-btn.ble-connected:hover {
+    background: linear-gradient(135deg, #ff6b6b, #e74c3c);
+}
+.ble-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.ble-connect-row {
+    margin-bottom: 8px;
+}
+
+.ble-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,.7);
+    margin-bottom: 8px;
+}
+
+.ble-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ble-status-dot.disconnected { background: #7f8c8d; }
+.ble-status-dot.scanning,
+.ble-status-dot.connecting { background: #f39c12; animation: blePulse 1s infinite; }
+.ble-status-dot.connected { background: #2ecc71; }
+
+@keyframes blePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .3; }
+}
+
+.ble-telemetry.hidden { display: none; }
+
+.ble-tel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.ble-tel-item {
+    background: rgba(255,255,255,.06);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ble-tel-label {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+
+.ble-tel-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.ble-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.ble-ctrl-btn {
+    flex: 1;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.15);
+    color: #fff;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .2s;
+}
+.ble-ctrl-btn:hover {
+    background: rgba(255,255,255,.2);
+}
+
+/* Speed source label on speedometer */
+.speed-source-label {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,.6);
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
+.floating-speedometer {
+    cursor: pointer;
+}

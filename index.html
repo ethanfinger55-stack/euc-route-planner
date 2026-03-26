@@ -175,6 +175,57 @@
                 </div>
             </div>
 
+            <!-- Connect EUC -->
+            <div class="sidebar-section collapsible collapsed-section">
+                <div class="section-header" data-collapse>
+                    <h3><i class="fab fa-bluetooth-b"></i> Connect EUC</h3>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
+                <div class="ble-connect-row">
+                    <button id="ble-connect-btn" class="btn btn-full ble-btn">
+                        <i class="fab fa-bluetooth-b"></i> Connect Wheel
+                    </button>
+                </div>
+                <div class="ble-status-row">
+                    <span id="ble-status-indicator" class="ble-status-dot disconnected"></span>
+                    <span id="ble-status-text">Not connected</span>
+                </div>
+                <div id="ble-telemetry" class="ble-telemetry hidden">
+                    <div class="ble-tel-grid">
+                        <div class="ble-tel-item">
+                            <span class="ble-tel-label"><i class="fas fa-tachometer-alt"></i> Speed</span>
+                            <span id="ble-tel-speed" class="ble-tel-value">0 mph</span>
+                        </div>
+                        <div class="ble-tel-item">
+                            <span class="ble-tel-label"><i class="fas fa-battery-half"></i> Battery</span>
+                            <span id="ble-tel-battery" class="ble-tel-value">0%</span>
+                        </div>
+                        <div class="ble-tel-item">
+                            <span class="ble-tel-label"><i class="fas fa-bolt"></i> Voltage</span>
+                            <span id="ble-tel-voltage" class="ble-tel-value">0V</span>
+                        </div>
+                        <div class="ble-tel-item">
+                            <span class="ble-tel-label"><i class="fas fa-thermometer-half"></i> Temp</span>
+                            <span id="ble-tel-temp" class="ble-tel-value">0°C</span>
+                        </div>
+                        <div class="ble-tel-item">
+                            <span class="ble-tel-label"><i class="fas fa-fire"></i> Power</span>
+                            <span id="ble-tel-power" class="ble-tel-value">0W</span>
+                        </div>
+                    </div>
+                    <div class="ble-controls">
+                        <button id="ble-light-btn" class="btn btn-sm ble-ctrl-btn" title="Toggle Light">
+                            <i class="fas fa-lightbulb"></i>
+                        </button>
+                        <button id="ble-beep-btn" class="btn btn-sm ble-ctrl-btn" title="Beep">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                    </div>
+                </div>
+                </div>
+            </div>
+
             <!-- Trip Type -->
             <div class="sidebar-section">
                 <div class="trip-type-toggle">
@@ -324,6 +375,7 @@
         <div id="floating-speedometer" class="floating-speedometer hidden">
             <div class="floating-speed-value" id="floating-speed-val">0</div>
             <div class="floating-speed-unit">mph</div>
+            <div id="speed-source-label" class="speed-source-label">GPS</div>
         </div>
 
         <!-- Navigation HUD -->
