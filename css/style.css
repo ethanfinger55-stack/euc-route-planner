@@ -742,6 +742,27 @@ input[type="checkbox"] {
     color: #fff;
 }
 
+.nav-ctrl-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: #f1c40f;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+.nav-ctrl-btn:hover {
+    background: #f1c40f;
+    color: #222;
+}
+.nav-ctrl-btn.hidden { display: none; }
+
 /* ===== Nearby Panel ===== */
 .nearby-panel {
     padding: 12px 16px;
@@ -1647,11 +1668,11 @@ input[type="checkbox"] {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 110px;
-    height: 110px;
+    width: 140px;
+    height: 140px;
     border-radius: 50%;
     background: var(--bg-sidebar);
-    border: 4px solid var(--accent-green);
+    border: 5px solid var(--accent-green);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
     transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
 }
@@ -1678,14 +1699,14 @@ input[type="checkbox"] {
 }
 
 .floating-speed-value {
-    font-size: 42px;
+    font-size: 52px;
     font-weight: 900;
     color: var(--text-primary);
     line-height: 1;
 }
 
 .floating-speed-unit {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-muted);
     font-weight: 700;
     text-transform: uppercase;
@@ -2540,18 +2561,18 @@ input[type="checkbox"] {
 
     /* ----- Floating Speedometer mobile ----- */
     .floating-speedometer {
-        width: 100px;
-        height: 100px;
+        width: 130px;
+        height: 130px;
         bottom: 210px;
         right: 12px;
     }
 
     .floating-speed-value {
-        font-size: 38px;
+        font-size: 48px;
     }
 
     .floating-speed-unit {
-        font-size: 11px;
+        font-size: 13px;
     }
 
     /* ----- Trip Type mobile ----- */

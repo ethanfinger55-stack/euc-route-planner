@@ -3100,6 +3100,10 @@
         const modal = $('#speed-review-modal');
         if (modal) modal.classList.add('hidden');
 
+        // Show Go button so user can start navigation
+        const mapNavBtn = $('#map-start-nav-btn');
+        if (mapNavBtn) mapNavBtn.classList.remove('hidden');
+
         // Collapse sidebar and show map for navigation
         if (!sidebar.classList.contains('collapsed')) {
             toggleSidebar();
@@ -3392,6 +3396,12 @@
         const telPanel = $('#ble-telemetry');
         if (telPanel) telPanel.classList.toggle('hidden', status !== 'connected');
         if (tips) tips.classList.toggle('hidden', status === 'connected');
+
+        // Show/hide nav HUD light & beep buttons
+        const navLight = $('#nav-light-btn');
+        const navBeep = $('#nav-beep-btn');
+        if (navLight) navLight.classList.toggle('hidden', status !== 'connected');
+        if (navBeep) navBeep.classList.toggle('hidden', status !== 'connected');
     }
 
     // ===== BLE Protocol: InMotion V2 =====
@@ -3635,22 +3645,30 @@
     }
 
     async function bleToggleLight() {
-        if (!bleConnected || !bleWriteChar) return;
+        if (!bleConnected || !bleWriteChar) {
+            bleLog('Connect your wheel first to toggle the light', 'warn');
+            return;
+        }
         const msg = bleV2BuildMsg(0x14, 0x60, [0x50, 0x01]); // setLight(true) toggle
         try {
             await bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg));
+            bleLog('Light toggled', 'ok');
         } catch (e) {
-            console.warn('BLE light toggle error:', e);
+            bleLog('Light toggle failed: ' + e.message, 'error');
         }
     }
 
     async function blePlayBeep() {
-        if (!bleConnected || !bleWriteChar) return;
+        if (!bleConnected || !bleWriteChar) {
+            bleLog('Connect your wheel first to use the horn', 'warn');
+            return;
+        }
         const msg = bleV2BuildMsg(0x14, 0x60, [0x51, 0x02, 0x64]); // playBeep
         try {
             await bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg));
+            bleLog('Beep sent', 'ok');
         } catch (e) {
-            console.warn('BLE beep error:', e);
+            bleLog('Beep failed: ' + e.message, 'error');
         }
     }
 
@@ -3803,6 +3821,12 @@
         if (bleLightBtn) bleLightBtn.addEventListener('click', bleToggleLight);
         const bleBeepBtn = $('#ble-beep-btn');
         if (bleBeepBtn) bleBeepBtn.addEventListener('click', blePlayBeep);
+
+        // Nav HUD light & beep buttons
+        const navLightBtn = $('#nav-light-btn');
+        if (navLightBtn) navLightBtn.addEventListener('click', bleToggleLight);
+        const navBeepBtn = $('#nav-beep-btn');
+        if (navBeepBtn) navBeepBtn.addEventListener('click', blePlayBeep);
 
         // Speedometer tap to toggle speed source
         const speedo = $('#floating-speedometer');
