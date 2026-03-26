@@ -76,15 +76,20 @@
                 </div>
 
                 <label for="end-input" style="margin-top: 12px;">
-                    <i class="fas fa-flag-checkered" style="color: var(--accent-red);"></i> Destination
+                    <i class="fas fa-flag-checkered" style="color: var(--accent-red);"></i> Destinations
                 </label>
-                <div class="input-group">
-                    <input type="text" id="end-input" placeholder="Enter destination address" autocomplete="off" />
-                    <button id="pick-dest-btn" class="btn btn-sm" title="Pick destination on map">
+
+                <!-- Waypoint list (draggable) -->
+                <div id="waypoint-list" class="waypoint-list"></div>
+
+                <!-- Add destination input -->
+                <div class="input-group" id="add-dest-group">
+                    <input type="text" id="end-input" placeholder="Add destination address" autocomplete="off" />
+                    <button id="pick-dest-btn" class="btn btn-sm" title="Pick on map">
                         <i class="fas fa-map-marked-alt"></i>
                     </button>
-                    <button id="clear-end-btn" class="btn btn-sm" title="Clear destination">
-                        <i class="fas fa-times"></i>
+                    <button id="add-dest-btn" class="btn btn-sm" title="Add destination">
+                        <i class="fas fa-plus"></i>
                     </button>
                 </div>
 
@@ -295,6 +300,25 @@
                     <i class="fas fa-road"></i>
                     <span id="nav-hud-remaining">—</span>
                 </div>
+                <button id="nav-add-stop-btn" class="nav-add-stop-btn" title="Add a stop">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
+            </div>
+
+            <!-- Nearby places panel (shown when Add Stop is tapped) -->
+            <div id="nearby-panel" class="nearby-panel hidden">
+                <div class="nearby-panel-header">
+                    <h4><i class="fas fa-map-pin"></i> Add a Stop</h4>
+                    <button id="nearby-panel-close" class="btn-close-nav" title="Close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="nearby-list" class="nearby-list">
+                    <p class="nearby-loading"><i class="fas fa-spinner fa-spin"></i> Finding nearby places...</p>
+                </div>
+                <button id="nearby-custom-btn" class="btn btn-sm btn-full" style="margin-top: 8px;">
+                    <i class="fas fa-edit"></i> Custom Address
+                </button>
             </div>
             <!-- Expandable directions panel -->
             <div class="nav-hud-directions-panel" id="nav-hud-directions-panel">

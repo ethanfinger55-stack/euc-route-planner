@@ -122,6 +122,10 @@
     let debounceTimer = null;
     let pickingDestOnMap = false; // true when user is picking destination on map
 
+    // Multi-destination state
+    let waypoints = []; // [{coords: [lat,lng], label: string}]
+    let waypointMarkers = []; // Leaflet markers for intermediate waypoints
+
     // Navigation state
     let navActive = false;
     let navWatchId = null;
@@ -162,7 +166,6 @@
     const startInput = $('#start-input');
     const endInput = $('#end-input');
     const useLocationBtn = $('#use-location-btn');
-    const clearEndBtn = $('#clear-end-btn');
     const findRouteBtn = $('#find-route-btn');
     const suggestionsDropdown = $('#suggestions-dropdown');
     const loadingOverlay = $('#loading-overlay');
@@ -200,11 +203,12 @@
     }
 
     function setHomeAddress() {
-        // Use the current start input if it's populated, otherwise prompt
+        // Use the current start input if it's populated, otherwise use last waypoint
         if (startCoords && startInput.value.trim()) {
             saveHomeAddress(startInput.value.trim(), startCoords);
-        } else if (endCoords && endInput.value.trim()) {
-            saveHomeAddress(endInput.value.trim(), endCoords);
+        } else if (waypoints.length > 0) {
+            const lastWp = waypoints[waypoints.length - 1];
+            saveHomeAddress(lastWp.label, lastWp.coords);
         } else {
             alert('Enter a start or destination address first, then tap Set Home.');
         }
@@ -213,15 +217,7 @@
     function goHomeAddress() {
         const home = loadHomeAddress();
         if (!home) return;
-        endCoords = home.coords;
-        endInput.value = home.label;
-        placeEndMarker(endCoords);
-        if (startCoords) {
-            const bounds = L.latLngBounds([startCoords, endCoords]);
-            map.fitBounds(bounds, { padding: [60, 60] });
-        } else {
-            map.setView(endCoords, DEFAULT_ZOOM);
-        }
+        addWaypoint(home.coords, home.label);
     }
 
     // ===== Manual Speed Limit Overrides =====
@@ -289,20 +285,23 @@
         apiKeyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveApiKey(); });
 
         useLocationBtn.addEventListener('click', useCurrentLocation);
-        clearEndBtn.addEventListener('click', () => {
-            endInput.value = '';
-            endCoords = null;
-        });
+
+        // Add destination button
+        const addDestBtn = $('#add-dest-btn');
+        if (addDestBtn) {
+            addDestBtn.addEventListener('click', () => {
+                const val = endInput.value.trim();
+                if (!val) return;
+                // Try to geocode the typed text and add as waypoint
+                geocodeAndAddWaypoint(val);
+            });
+        }
 
         // Pick destination on map button
         const pickDestBtn = $('#pick-dest-btn');
         if (pickDestBtn) {
             pickDestBtn.addEventListener('click', () => {
                 pickingDestOnMap = true;
-                // Clear any existing destination
-                endInput.value = '';
-                endCoords = null;
-                if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
                 // Collapse sidebar so user can tap the map
                 if (!sidebar.classList.contains('collapsed')) {
                     toggleSidebar();
@@ -324,6 +323,13 @@
 
         startInput.addEventListener('input', (e) => handleGeoInput(e, 'start'));
         endInput.addEventListener('input', (e) => handleGeoInput(e, 'end'));
+        endInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = endInput.value.trim();
+                if (val) geocodeAndAddWaypoint(val);
+            }
+        });
 
         startInput.addEventListener('focus', () => { activeInput = 'start'; });
         endInput.addEventListener('focus', () => { activeInput = 'end'; });
@@ -365,8 +371,12 @@
         endInput.value = '';
         startCoords = null;
         endCoords = null;
+        waypoints = [];
+        waypointMarkers.forEach(m => map.removeLayer(m));
+        waypointMarkers = [];
         if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
         if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+        renderWaypointList();
         clearRoute();
         routeInfoPanel.classList.add('hidden');
         speedLegend.classList.add('hidden');
@@ -484,20 +494,15 @@
             startInput.value = label;
             placeStartMarker(coords);
         } else {
-            endCoords = coords;
-            endInput.value = label;
-            placeEndMarker(coords);
+            // Add as waypoint instead of overwriting endCoords
+            addWaypoint(coords, label);
+            endInput.value = '';
         }
 
         suggestionsDropdown.classList.add('hidden');
 
-        // Fit map to show both markers if both exist
-        if (startCoords && endCoords) {
-            const bounds = L.latLngBounds([startCoords, endCoords]);
-            map.fitBounds(bounds, { padding: [60, 60] });
-        } else {
-            map.setView(coords, DEFAULT_ZOOM);
-        }
+        // Fit map to show all points
+        fitMapToAllPoints();
     }
 
     async function reverseGeocode(coords) {
@@ -534,10 +539,18 @@
 
         if (pickingDestOnMap) {
             pickingDestOnMap = false;
-            endCoords = coords;
-            placeEndMarker(coords);
-            endInput.value = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
-            reverseGeocode(coords).then(addr => { if (addr) endInput.value = addr; });
+            const tempLabel = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
+            addWaypoint(coords, tempLabel);
+            reverseGeocode(coords).then(addr => {
+                if (addr) {
+                    // Update the label of the last added waypoint
+                    const lastWp = waypoints[waypoints.length - 1];
+                    if (lastWp && lastWp.coords[0] === coords[0] && lastWp.coords[1] === coords[1]) {
+                        lastWp.label = addr;
+                        renderWaypointList();
+                    }
+                }
+            });
             // Re-open sidebar
             if (sidebar.classList.contains('collapsed')) {
                 toggleSidebar();
@@ -550,11 +563,18 @@
             placeStartMarker(coords);
             startInput.value = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
             reverseGeocode(coords).then(addr => { if (addr) startInput.value = addr; });
-        } else if (!endCoords) {
-            endCoords = coords;
-            placeEndMarker(coords);
-            endInput.value = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
-            reverseGeocode(coords).then(addr => { if (addr) endInput.value = addr; });
+        } else {
+            const tempLabel = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
+            addWaypoint(coords, tempLabel);
+            reverseGeocode(coords).then(addr => {
+                if (addr) {
+                    const lastWp = waypoints[waypoints.length - 1];
+                    if (lastWp && lastWp.coords[0] === coords[0] && lastWp.coords[1] === coords[1]) {
+                        lastWp.label = addr;
+                        renderWaypointList();
+                    }
+                }
+            });
         }
     }
 
@@ -583,6 +603,230 @@
         }).addTo(map).bindPopup('Destination');
     }
 
+    // ===== Waypoint Management =====
+    function addWaypoint(coords, label) {
+        waypoints.push({ coords, label });
+        endCoords = coords; // keep backward compat
+        renderWaypointList();
+        placeWaypointMarkers();
+        fitMapToAllPoints();
+    }
+
+    function removeWaypoint(index) {
+        waypoints.splice(index, 1);
+        endCoords = waypoints.length > 0 ? waypoints[waypoints.length - 1].coords : null;
+        renderWaypointList();
+        placeWaypointMarkers();
+        fitMapToAllPoints();
+    }
+
+    function renderWaypointList() {
+        const container = $('#waypoint-list');
+        if (!container) return;
+        container.innerHTML = '';
+
+        waypoints.forEach((wp, idx) => {
+            const item = document.createElement('div');
+            item.className = 'waypoint-item';
+            item.draggable = true;
+            item.dataset.index = idx;
+
+            item.innerHTML =
+                '<span class="waypoint-drag-handle"><i class="fas fa-grip-vertical"></i></span>' +
+                '<span class="waypoint-num">' + (idx + 1) + '</span>' +
+                '<span class="waypoint-label">' + escapeHtml(wp.label) + '</span>' +
+                '<button class="waypoint-remove" data-idx="' + idx + '" title="Remove"><i class="fas fa-times"></i></button>';
+
+            // Drag events
+            item.addEventListener('dragstart', onWaypointDragStart);
+            item.addEventListener('dragover', onWaypointDragOver);
+            item.addEventListener('dragenter', onWaypointDragEnter);
+            item.addEventListener('dragleave', onWaypointDragLeave);
+            item.addEventListener('drop', onWaypointDrop);
+            item.addEventListener('dragend', onWaypointDragEnd);
+
+            // Touch drag support
+            item.addEventListener('touchstart', onWaypointTouchStart, { passive: false });
+
+            // Remove button
+            item.querySelector('.waypoint-remove').addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeWaypoint(idx);
+            });
+
+            container.appendChild(item);
+        });
+    }
+
+    let dragSrcIndex = null;
+
+    function onWaypointDragStart(e) {
+        dragSrcIndex = parseInt(this.dataset.index, 10);
+        this.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragSrcIndex);
+    }
+
+    function onWaypointDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function onWaypointDragEnter(e) {
+        e.preventDefault();
+        this.classList.add('drag-over');
+    }
+
+    function onWaypointDragLeave() {
+        this.classList.remove('drag-over');
+    }
+
+    function onWaypointDrop(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+        const targetIndex = parseInt(this.dataset.index, 10);
+        if (dragSrcIndex == null || dragSrcIndex === targetIndex) return;
+
+        // Reorder waypoints
+        const moved = waypoints.splice(dragSrcIndex, 1)[0];
+        waypoints.splice(targetIndex, 0, moved);
+        endCoords = waypoints.length > 0 ? waypoints[waypoints.length - 1].coords : null;
+
+        renderWaypointList();
+        placeWaypointMarkers();
+    }
+
+    function onWaypointDragEnd() {
+        this.classList.remove('dragging');
+        document.querySelectorAll('.waypoint-item').forEach(el => el.classList.remove('drag-over'));
+        dragSrcIndex = null;
+    }
+
+    // Touch-based drag for mobile
+    let touchDragItem = null;
+    let touchStartY = 0;
+
+    function onWaypointTouchStart(e) {
+        const handle = e.target.closest('.waypoint-drag-handle');
+        if (!handle) return;
+        e.preventDefault();
+        touchDragItem = this;
+        touchStartY = e.touches[0].clientY;
+        dragSrcIndex = parseInt(this.dataset.index, 10);
+        this.classList.add('dragging');
+
+        const onTouchMove = (ev) => {
+            ev.preventDefault();
+            const touchY = ev.touches[0].clientY;
+            const items = Array.from(document.querySelectorAll('.waypoint-item'));
+            items.forEach(it => it.classList.remove('drag-over'));
+            const target = document.elementFromPoint(ev.touches[0].clientX, touchY);
+            const targetItem = target ? target.closest('.waypoint-item') : null;
+            if (targetItem && targetItem !== touchDragItem) {
+                targetItem.classList.add('drag-over');
+            }
+        };
+
+        const onTouchEnd = (ev) => {
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+            if (!touchDragItem) return;
+            touchDragItem.classList.remove('dragging');
+
+            const touchY = ev.changedTouches[0].clientY;
+            const target = document.elementFromPoint(ev.changedTouches[0].clientX, touchY);
+            const targetItem = target ? target.closest('.waypoint-item') : null;
+            if (targetItem && targetItem !== touchDragItem) {
+                const targetIndex = parseInt(targetItem.dataset.index, 10);
+                if (dragSrcIndex != null && dragSrcIndex !== targetIndex) {
+                    const moved = waypoints.splice(dragSrcIndex, 1)[0];
+                    waypoints.splice(targetIndex, 0, moved);
+                    endCoords = waypoints.length > 0 ? waypoints[waypoints.length - 1].coords : null;
+                    renderWaypointList();
+                    placeWaypointMarkers();
+                }
+            }
+            document.querySelectorAll('.waypoint-item').forEach(el => el.classList.remove('drag-over'));
+            touchDragItem = null;
+            dragSrcIndex = null;
+        };
+
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd);
+    }
+
+    function placeWaypointMarkers() {
+        // Remove old waypoint markers
+        waypointMarkers.forEach(m => map.removeLayer(m));
+        waypointMarkers = [];
+        if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+
+        waypoints.forEach((wp, idx) => {
+            const isLast = idx === waypoints.length - 1;
+            if (isLast) {
+                // Last waypoint gets the destination marker
+                placeEndMarker(wp.coords);
+            } else {
+                // Intermediate waypoints get numbered markers
+                const marker = L.marker(wp.coords, {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div class="waypoint-marker-icon">' + (idx + 1) + '</div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    })
+                }).addTo(map).bindPopup('Stop ' + (idx + 1) + ': ' + escapeHtml(wp.label));
+                waypointMarkers.push(marker);
+            }
+        });
+    }
+
+    function fitMapToAllPoints() {
+        const points = [];
+        if (startCoords) points.push(startCoords);
+        waypoints.forEach(wp => points.push(wp.coords));
+        if (points.length >= 2) {
+            const bounds = L.latLngBounds(points);
+            map.fitBounds(bounds, { padding: [60, 60] });
+        } else if (points.length === 1) {
+            map.setView(points[0], DEFAULT_ZOOM);
+        }
+    }
+
+    async function geocodeAndAddWaypoint(query) {
+        if (!apiKey) { alert('Please enter your API key first.'); return; }
+        if (!rateLimiter.canRequest('search')) { alert('Search rate limit reached.'); return; }
+
+        try {
+            const params = new URLSearchParams({
+                api_key: apiKey,
+                text: query,
+                size: '1',
+                'boundary.country': 'US'
+            });
+            const center = map.getCenter();
+            if (map.getZoom() >= 8) {
+                params.set('focus.point.lat', center.lat.toFixed(5));
+                params.set('focus.point.lon', center.lng.toFixed(5));
+            }
+            const resp = await fetch(`${ORS_BASE}/geocode/search?${params}`);
+            if (!resp.ok) throw new Error('Geocoding failed');
+            rateLimiter.record('search');
+            const data = await resp.json();
+            if (data.features && data.features.length > 0) {
+                const f = data.features[0];
+                const coords = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
+                addWaypoint(coords, f.properties.label);
+                endInput.value = '';
+            } else {
+                alert('Address not found. Try a different search term.');
+            }
+        } catch (err) {
+            console.error('Geocode search error:', err);
+            alert('Could not geocode address.');
+        }
+    }
+
     // ===== Clear Previous Route =====
     function clearRoute() {
         routeLayers.forEach(layer => map.removeLayer(layer));
@@ -598,6 +842,135 @@
         if (batteryCard) batteryCard.classList.add('hidden');
     }
 
+    // ===== Nearby Places Search (for Nav Add Stop) =====
+    async function searchNearbyPlaces(lat, lng, radiusMeters) {
+        radiusMeters = radiusMeters || 3000; // 3km default
+        const query = `
+            [out:json][timeout:15];
+            (
+              node["amenity"="fuel"](around:${radiusMeters},${lat},${lng});
+              node["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
+            );
+            out body;
+        `;
+
+        try {
+            const resp = await fetch(OVERPASS_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'data=' + encodeURIComponent(query)
+            });
+            if (!resp.ok) throw new Error('Overpass error');
+            const data = await resp.json();
+
+            const places = [];
+            if (data.elements) {
+                data.elements.forEach(el => {
+                    if (!el.lat || !el.lon) return;
+                    const name = (el.tags && el.tags.name) || (el.tags && el.tags.amenity === 'fuel' ? 'Gas Station' : 'Fast Food');
+                    const type = el.tags && el.tags.amenity === 'fuel' ? 'fuel' : 'food';
+                    const distKm = haversineDistance([lat, lng], [el.lat, el.lon]);
+                    const distMi = distKm * 0.621371;
+                    places.push({
+                        name: name,
+                        type: type,
+                        coords: [el.lat, el.lon],
+                        distMi: distMi
+                    });
+                });
+            }
+
+            // Sort by distance
+            places.sort((a, b) => a.distMi - b.distMi);
+            return places.slice(0, 10); // top 10 nearest
+        } catch (err) {
+            console.warn('Nearby places error:', err);
+            return [];
+        }
+    }
+
+    function showNearbyPanel() {
+        const panel = $('#nearby-panel');
+        const list = $('#nearby-list');
+        if (!panel || !list) return;
+
+        panel.classList.remove('hidden');
+        list.innerHTML = '<p class="nearby-loading"><i class="fas fa-spinner fa-spin"></i> Finding nearby places...</p>';
+
+        // Get current user position
+        const pos = navLastPosition || (navRouteCoords && navRouteCoords[0]);
+        if (!pos) {
+            list.innerHTML = '<p class="nearby-loading">Cannot determine your location.</p>';
+            return;
+        }
+
+        searchNearbyPlaces(pos[0], pos[1]).then(places => {
+            if (places.length === 0) {
+                list.innerHTML = '<p class="nearby-loading">No gas stations or fast food found nearby.</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            places.forEach(place => {
+                const item = document.createElement('div');
+                item.className = 'nearby-item';
+                const icon = place.type === 'fuel' ? 'fa-gas-pump' : 'fa-utensils';
+                const iconClass = place.type === 'fuel' ? 'fuel' : 'food';
+                item.innerHTML =
+                    '<span class="nearby-item-icon ' + iconClass + '"><i class="fas ' + icon + '"></i></span>' +
+                    '<div class="nearby-item-info">' +
+                    '<div class="nearby-item-name">' + escapeHtml(place.name) + '</div>' +
+                    '<div class="nearby-item-dist">' + place.distMi.toFixed(1) + ' mi away</div>' +
+                    '</div>';
+
+                item.addEventListener('click', () => {
+                    addStopDuringNav(place.coords, place.name);
+                });
+                list.appendChild(item);
+            });
+        });
+    }
+
+    function hideNearbyPanel() {
+        const panel = $('#nearby-panel');
+        if (panel) panel.classList.add('hidden');
+    }
+
+    function addStopDuringNav(coords, label) {
+        hideNearbyPanel();
+
+        // Insert as next waypoint after current position
+        // Find the closest waypoint index to insert after
+        let insertIdx = 0;
+        if (navLastPosition && waypoints.length > 0) {
+            let minDist = Infinity;
+            waypoints.forEach((wp, i) => {
+                const d = haversineDistance(navLastPosition, wp.coords);
+                if (d < minDist) { minDist = d; insertIdx = i; }
+            });
+            // Insert before the closest upcoming waypoint
+            // If the closest waypoint is behind us, insert after it
+            if (insertIdx < waypoints.length - 1) {
+                insertIdx = insertIdx; // insert before this one
+            }
+        }
+
+        // Add the stop
+        waypoints.splice(insertIdx, 0, { coords, label });
+        endCoords = waypoints[waypoints.length - 1].coords;
+        renderWaypointList();
+        placeWaypointMarkers();
+
+        // Re-calculate route from current position through all remaining waypoints
+        if (navActive && navLastPosition) {
+            stopNavigation();
+            startCoords = navLastPosition;
+            placeStartMarker(startCoords);
+            startInput.value = 'Current Location';
+            findRoute();
+        }
+    }
+
     // ===== Main Route Finding =====
     async function findRoute() {
         if (!apiKey) {
@@ -608,8 +981,8 @@
             alert('Please set a start location (click the map, use GPS, or enter an address).');
             return;
         }
-        if (!endCoords) {
-            alert('Please set a destination.');
+        if (waypoints.length === 0) {
+            alert('Please add at least one destination.');
             return;
         }
         if (!rateLimiter.canRequest('directions')) {
@@ -692,7 +1065,8 @@
 
             // Step 8: Show info for selected route
             const sel = allRoutes[selectedRouteIdx];
-            showRouteInfo(sel.routeData, sel.speedData, sel.routeData.segments[0].steps);
+            const allStepsForDisplay = sel.routeData.segments.flatMap(seg => seg.steps || []);
+            showRouteInfo(sel.routeData, sel.speedData, allStepsForDisplay);
             drawElevationProfile(sel.routeCoords, sel.elevationData);
             updateRangeEstimate(sel.routeData, sel.elevationData);
             updateBatteryCard(sel.routeData, sel.elevationData);
@@ -702,8 +1076,9 @@
             const bounds = L.latLngBounds(allCoords);
             map.fitBounds(bounds, { padding: [80, 80] });
 
-            // Save to history
-            saveRouteToHistory(startInput.value, endInput.value, startCoords, endCoords);
+            // Save to history (use last waypoint label as end label)
+            const endLabel = waypoints.length > 0 ? waypoints[waypoints.length - 1].label : '';
+            saveRouteToHistory(startInput.value, endLabel, startCoords, endCoords);
 
             // Store data for navigation (selected route)
             setNavDataFromRoute(sel);
@@ -726,9 +1101,16 @@
 
     function setNavDataFromRoute(routeObj) {
         navRouteCoords = routeObj.routeCoords;
-        navSteps = routeObj.routeData.segments[0].steps;
+        // Combine steps from all segments
+        const allSteps = [];
+        let totalDist = 0;
+        routeObj.routeData.segments.forEach(seg => {
+            if (seg.steps) allSteps.push(...seg.steps);
+            totalDist += seg.distance;
+        });
+        navSteps = allSteps;
         navSpeedData = routeObj.speedData;
-        navTotalDistanceMi = routeObj.routeData.segments[0].distance;
+        navTotalDistanceMi = totalDist;
         navElevationData = routeObj.elevationData || null;
     }
 
@@ -751,8 +1133,8 @@
                 interactive: true
             }).addTo(map);
 
-            const distMi = r.routeData.segments[0].distance.toFixed(1);
-            const eucTimeMin = Math.round((r.routeData.segments[0].distance / EUC_AVG_SPEED_MPH) * 60);
+            const distMi = r.routeData.segments.reduce((s, seg) => s + seg.distance, 0).toFixed(1);
+            const eucTimeMin = Math.round((distMi / EUC_AVG_SPEED_MPH) * 60);
             line.bindTooltip(r.label + ' — ' + distMi + ' mi, ~' + eucTimeMin + ' min, ' + r.highSpeedPct + '% fast roads', { sticky: true });
             line.on('click', function () { selectRoute(idx); });
             routeLayers.push(line);
@@ -774,8 +1156,8 @@
             const tab = document.createElement('button');
             tab.className = 'route-tab' + (idx === selectedRouteIdx ? ' active' : '');
 
-            const distMi = r.routeData.segments[0].distance.toFixed(1);
-            const eucTimeMin = Math.round((r.routeData.segments[0].distance / EUC_AVG_SPEED_MPH) * 60);
+            const distMi = r.routeData.segments.reduce((s, seg) => s + seg.distance, 0).toFixed(1);
+            const eucTimeMin = Math.round((distMi / EUC_AVG_SPEED_MPH) * 60);
             const badgeClass = idx === 0 ? 'badge-fast' : 'badge-safe';
             const badgeText = idx === 0 ? 'Fastest' : (r.highSpeedPct + '% fast roads');
 
@@ -810,7 +1192,8 @@
         tabs.forEach((t, i) => t.classList.toggle('active', i === idx));
 
         // Update info panels
-        showRouteInfo(sel.routeData, sel.speedData, sel.routeData.segments[0].steps);
+        const allStepsSelect = sel.routeData.segments.flatMap(seg => seg.steps || []);
+        showRouteInfo(sel.routeData, sel.speedData, allStepsSelect);
         drawElevationProfile(sel.routeCoords, sel.elevationData);
         updateRangeEstimate(sel.routeData, sel.elevationData);
         updateBatteryCard(sel.routeData, sel.elevationData);
@@ -827,25 +1210,30 @@
         const prefCheckbox = $('#prefer-residential');
         const preferResidential = prefCheckbox ? prefCheckbox.checked : true;
 
+        // Build coordinates array: start + all waypoints
+        const coords = [[startCoords[1], startCoords[0]]]; // ORS uses [lng, lat]
+        waypoints.forEach(wp => coords.push([wp.coords[1], wp.coords[0]]));
+
         const body = {
-            coordinates: [
-                [startCoords[1], startCoords[0]], // ORS uses [lng, lat]
-                [endCoords[1], endCoords[0]]
-            ],
+            coordinates: coords,
             preference: preferResidential ? 'shortest' : 'recommended',
             units: 'mi',
             language: 'en',
             instructions: true,
             geometry: true,
-            alternative_routes: {
-                target_count: 3,
-                share_factor: 0.6,
-                weight_factor: 1.4
-            },
             options: {
                 avoid_features: ['ferries', 'steps']
             }
         };
+
+        // Only request alternatives for simple A→B routes (2 coordinates)
+        if (coords.length === 2) {
+            body.alternative_routes = {
+                target_count: 3,
+                share_factor: 0.6,
+                weight_factor: 1.4
+            };
+        }
 
         // Try cycling-regular first (best for EUC), fall back to foot-walking
         const profiles = ['cycling-regular', 'foot-walking'];
@@ -1130,18 +1518,19 @@
 
     // ===== Show Route Info Panel =====
     function showRouteInfo(routeData, speedData, steps) {
-        const segment = routeData.segments[0];
-        const distanceMiles = (segment.distance * 0.000621371).toFixed(1); // meters to miles per ORS
-        const durationMin = Math.round(segment.duration / 60);
+        // Sum across all segments for multi-waypoint routes
+        let totalDistance = 0;
+        let totalDuration = 0;
+        const allSteps = [];
+        routeData.segments.forEach(seg => {
+            totalDistance += seg.distance;
+            totalDuration += seg.duration;
+            if (seg.steps) allSteps.push(...seg.steps);
+        });
+        const stepsToShow = allSteps.length > 0 ? allSteps : steps;
 
-        // If ORS returns distance in miles (we asked for units: mi)
-        // Actually ORS returns summary in the requested unit
-        const distDisplay = segment.distance < 100
-            ? segment.distance.toFixed(1) + ' mi'
-            : (segment.distance).toFixed(1) + ' mi';
-
-        // Calculate time based on EUC speed
-        const eucTimeMin = Math.round((segment.distance / EUC_AVG_SPEED_MPH) * 60);
+        const distDisplay = totalDistance.toFixed(1) + ' mi';
+        const eucTimeMin = Math.round((totalDistance / EUC_AVG_SPEED_MPH) * 60);
 
         // Speed stats
         const speeds = speedData.filter(s => s.mph != null).map(s => s.mph);
@@ -1157,7 +1546,7 @@
         buildSpeedBreakdown(speedData);
 
         // Directions
-        buildDirections(steps, speedData, routeData);
+        buildDirections(stepsToShow, speedData, routeData);
 
         routeInfoPanel.classList.remove('hidden');
 
@@ -1465,7 +1854,7 @@
         const wheelRange = parseFloat(rangeInput.value) || 30;
         const batteryPct = Math.min(100, Math.max(1, parseFloat(battInput.value) || 100));
         const availableRange = wheelRange * (batteryPct / 100);
-        const routeDistance = routeData.segments[0].distance; // miles
+        const routeDistance = routeData.segments.reduce((s, seg) => s + seg.distance, 0); // miles
 
         // Elevation penalty: each 100ft of gain reduces effective range ~2%
         let elevGain = 0;
@@ -1517,7 +1906,7 @@
         var wheelRange = parseFloat(rangeInput.value) || 30;
         var batteryPct = Math.min(100, Math.max(1, parseFloat(battInput.value) || 100));
         var availableRange = wheelRange * (batteryPct / 100);
-        var routeDistance = routeData.segments[0].distance; // miles
+        var routeDistance = routeData.segments.reduce(function(s, seg) { return s + seg.distance; }, 0); // miles
 
         // Elevation penalty
         var elevGain = 0;
@@ -1789,13 +2178,14 @@
 
     function loadSavedRoute(route) {
         startCoords = route.startCoords;
-        endCoords = route.endCoords;
         startInput.value = route.startLabel;
-        endInput.value = route.endLabel;
         placeStartMarker(startCoords);
-        placeEndMarker(endCoords);
-        const bounds = L.latLngBounds([startCoords, endCoords]);
-        map.fitBounds(bounds, { padding: [60, 60] });
+
+        // Clear existing waypoints and add saved destination
+        waypoints = [];
+        waypointMarkers.forEach(m => map.removeLayer(m));
+        waypointMarkers = [];
+        addWaypoint(route.endCoords, route.endLabel);
     }
 
     function getTimeAgo(timestamp) {
@@ -2274,6 +2664,27 @@
         if (rideSummaryClose) {
             rideSummaryClose.addEventListener('click', () => {
                 $('#ride-summary').classList.add('hidden');
+            });
+        }
+
+        // Nav Add Stop button + Nearby Panel
+        const navAddStopBtn = $('#nav-add-stop-btn');
+        if (navAddStopBtn) {
+            navAddStopBtn.addEventListener('click', showNearbyPanel);
+        }
+        const nearbyPanelClose = $('#nearby-panel-close');
+        if (nearbyPanelClose) {
+            nearbyPanelClose.addEventListener('click', hideNearbyPanel);
+        }
+        const nearbyCustomBtn = $('#nearby-custom-btn');
+        if (nearbyCustomBtn) {
+            nearbyCustomBtn.addEventListener('click', () => {
+                hideNearbyPanel();
+                // Open sidebar for custom address entry
+                if (sidebar.classList.contains('collapsed')) {
+                    toggleSidebar();
+                }
+                endInput.focus();
             });
         }
 
