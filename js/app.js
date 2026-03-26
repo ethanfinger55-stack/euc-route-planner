@@ -191,6 +191,7 @@
     let bleV2UnpackerFlags = 0;
     let bleV2StateCon = 0;
     let bleV2UpdateStep = 0;
+    let bleLightOn = false; // track light state for toggling
 
     // BLE constants — V1 UUIDs (V5/V8/V10 series)
     const BLE_V1_SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
@@ -3649,12 +3650,22 @@
             bleLog('Connect your wheel first to toggle the light', 'warn');
             return;
         }
-        const msg = bleV2BuildMsg(0x14, 0x60, [0x50, 0x01]); // setLight(true) toggle
+        bleLightOn = !bleLightOn;
+        const enable = bleLightOn ? 0x01 : 0x00;
+        // Try standard 2-byte light command: [0x50, enable]
+        const msg = bleV2BuildMsg(0x14, 0x60, [0x50, enable]);
         try {
             await bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg));
-            bleLog('Light toggled', 'ok');
+            bleLog('Light ' + (bleLightOn ? 'on' : 'off'), 'ok');
         } catch (e) {
             bleLog('Light toggle failed: ' + e.message, 'error');
+        }
+        // Also try V12-style 3-byte command: [0x50, lowBeam, highBeam]
+        try {
+            const msg2 = bleV2BuildMsg(0x14, 0x60, [0x50, enable, enable]);
+            await bleWriteChar.writeValueWithoutResponse(new Uint8Array(msg2));
+        } catch (e) {
+            // silently ignore — one of the two formats should work
         }
     }
 
