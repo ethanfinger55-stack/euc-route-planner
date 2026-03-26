@@ -3288,24 +3288,16 @@
         if (mapNavBtn) mapNavBtn.classList.remove('hidden');
         updateBatteryCard(sel.routeData, sel.elevationData);
 
-        // Collapse sidebar and show map for navigation
-        if (!sidebar.classList.contains('collapsed')) {
-            toggleSidebar();
-        }
+        // Start navigation
+        startNavigation();
     }
 
     function skipSpeedReview() {
         const modal = $('#speed-review-modal');
         if (modal) modal.classList.add('hidden');
 
-        // Show Go button so user can start navigation
-        const mapNavBtn = $('#map-start-nav-btn');
-        if (mapNavBtn) mapNavBtn.classList.remove('hidden');
-
-        // Collapse sidebar and show map for navigation
-        if (!sidebar.classList.contains('collapsed')) {
-            toggleSidebar();
-        }
+        // Start navigation
+        startNavigation();
     }
 
     // ===== Bluetooth EUC Connection =====
