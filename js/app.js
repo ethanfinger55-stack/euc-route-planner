@@ -945,8 +945,10 @@
             (
               node["amenity"="fuel"](around:${radiusMeters},${lat},${lng});
               node["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});
+              node["amenity"="charging_station"](around:${radiusMeters},${lat},${lng});
+              way["amenity"="charging_station"](around:${radiusMeters},${lat},${lng});
             );
-            out body;
+            out body center;
         `;
 
         try {
@@ -961,16 +963,42 @@
             const places = [];
             if (data.elements) {
                 data.elements.forEach(el => {
-                    if (!el.lat || !el.lon) return;
-                    const name = (el.tags && el.tags.name) || (el.tags && el.tags.amenity === 'fuel' ? 'Gas Station' : 'Fast Food');
-                    const type = el.tags && el.tags.amenity === 'fuel' ? 'fuel' : 'food';
-                    const distKm = haversineDistance([lat, lng], [el.lat, el.lon]);
+                    const elLat = el.lat || (el.center && el.center.lat);
+                    const elLon = el.lon || (el.center && el.center.lon);
+                    if (!elLat || !elLon) return;
+                    let name, type;
+                    const amenity = el.tags && el.tags.amenity;
+                    if (amenity === 'charging_station') {
+                        name = (el.tags && el.tags.name) || 'EV Charging Station';
+                        type = 'charger';
+                    } else if (amenity === 'fuel') {
+                        name = (el.tags && el.tags.name) || 'Gas Station';
+                        type = 'fuel';
+                    } else {
+                        name = (el.tags && el.tags.name) || 'Fast Food';
+                        type = 'food';
+                    }
+                    const distKm = haversineDistance([lat, lng], [elLat, elLon]);
                     const distMi = distKm * 0.621371;
+
+                    // Build charger detail string
+                    let detail = '';
+                    if (type === 'charger' && el.tags) {
+                        const parts = [];
+                        if (el.tags.operator) parts.push(el.tags.operator);
+                        if (el.tags.socket) parts.push(el.tags.socket);
+                        if (el.tags.capacity) parts.push(el.tags.capacity + ' plugs');
+                        if (el.tags.fee === 'no' || el.tags.access === 'yes') parts.push('Free');
+                        else if (el.tags.fee === 'yes') parts.push('Paid');
+                        detail = parts.join(' · ');
+                    }
+
                     places.push({
                         name: name,
                         type: type,
-                        coords: [el.lat, el.lon],
-                        distMi: distMi
+                        coords: [elLat, elLon],
+                        distMi: distMi,
+                        detail: detail
                     });
                 });
             }
@@ -984,6 +1012,8 @@
         }
     }
 
+    let nearbyPlacesCache = []; // cache last search results for filtering
+
     function showNearbyPanel() {
         const panel = $('#nearby-panel');
         const list = $('#nearby-list');
@@ -991,6 +1021,11 @@
 
         panel.classList.remove('hidden');
         list.innerHTML = '<p class="nearby-loading"><i class="fas fa-spinner fa-spin"></i> Finding nearby places...</p>';
+
+        // Reset filter tabs to 'all'
+        document.querySelectorAll('.nearby-filter-btn').forEach(b => b.classList.remove('active'));
+        const allBtn = $('#nearby-filter-all');
+        if (allBtn) allBtn.classList.add('active');
 
         // Get current user position
         const pos = navLastPosition || (navRouteCoords && navRouteCoords[0]);
@@ -1000,29 +1035,50 @@
         }
 
         searchNearbyPlaces(pos[0], pos[1]).then(places => {
-            if (places.length === 0) {
-                list.innerHTML = '<p class="nearby-loading">No gas stations or fast food found nearby.</p>';
-                return;
+            nearbyPlacesCache = places;
+            renderNearbyList(places);
+        });
+    }
+
+    function renderNearbyList(places, filter) {
+        const list = $('#nearby-list');
+        if (!list) return;
+
+        let filtered = places;
+        if (filter && filter !== 'all') {
+            filtered = places.filter(p => p.type === filter);
+        }
+
+        if (filtered.length === 0) {
+            const labels = { charger: 'EV chargers', fuel: 'gas stations', food: 'fast food' };
+            const what = labels[filter] || 'places';
+            list.innerHTML = '<p class="nearby-loading">No ' + what + ' found nearby.</p>';
+            return;
+        }
+
+        list.innerHTML = '';
+        filtered.forEach(place => {
+            const item = document.createElement('div');
+            item.className = 'nearby-item';
+            let icon, iconClass;
+            if (place.type === 'charger') { icon = 'fa-charging-station'; iconClass = 'charger'; }
+            else if (place.type === 'fuel') { icon = 'fa-gas-pump'; iconClass = 'fuel'; }
+            else { icon = 'fa-utensils'; iconClass = 'food'; }
+
+            let infoHtml = '<div class="nearby-item-name">' + escapeHtml(place.name) + '</div>';
+            if (place.detail) {
+                infoHtml += '<div class="nearby-item-detail">' + escapeHtml(place.detail) + '</div>';
             }
+            infoHtml += '<div class="nearby-item-dist">' + place.distMi.toFixed(1) + ' mi away</div>';
 
-            list.innerHTML = '';
-            places.forEach(place => {
-                const item = document.createElement('div');
-                item.className = 'nearby-item';
-                const icon = place.type === 'fuel' ? 'fa-gas-pump' : 'fa-utensils';
-                const iconClass = place.type === 'fuel' ? 'fuel' : 'food';
-                item.innerHTML =
-                    '<span class="nearby-item-icon ' + iconClass + '"><i class="fas ' + icon + '"></i></span>' +
-                    '<div class="nearby-item-info">' +
-                    '<div class="nearby-item-name">' + escapeHtml(place.name) + '</div>' +
-                    '<div class="nearby-item-dist">' + place.distMi.toFixed(1) + ' mi away</div>' +
-                    '</div>';
+            item.innerHTML =
+                '<span class="nearby-item-icon ' + iconClass + '"><i class="fas ' + icon + '"></i></span>' +
+                '<div class="nearby-item-info">' + infoHtml + '</div>';
 
-                item.addEventListener('click', () => {
-                    addStopDuringNav(place.coords, place.name);
-                });
-                list.appendChild(item);
+            item.addEventListener('click', () => {
+                addStopDuringNav(place.coords, place.name);
             });
+            list.appendChild(item);
         });
     }
 
@@ -4124,6 +4180,14 @@
         if (nearbyPanelClose) {
             nearbyPanelClose.addEventListener('click', hideNearbyPanel);
         }
+        // Nearby filter tabs
+        document.querySelectorAll('.nearby-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.nearby-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                renderNearbyList(nearbyPlacesCache, btn.dataset.filter);
+            });
+        });
         const nearbyCustomBtn = $('#nearby-custom-btn');
         if (nearbyCustomBtn) {
             nearbyCustomBtn.addEventListener('click', () => {

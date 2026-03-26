@@ -853,6 +853,51 @@ input[type="checkbox"] {
 
 .nearby-item-icon.fuel { color: #e67e22; }
 .nearby-item-icon.food { color: #e74c3c; }
+.nearby-item-icon.charger { color: #2ecc71; }
+
+/* Nearby panel filter tabs */
+.nearby-filter-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+.nearby-filter-btn {
+    flex: 1;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all .2s;
+    text-align: center;
+    white-space: nowrap;
+}
+.nearby-filter-btn i {
+    margin-right: 3px;
+    font-size: 10px;
+}
+.nearby-filter-btn:hover {
+    background: rgba(255,255,255,.12);
+}
+.nearby-filter-btn.active {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #fff;
+}
+
+/* Nearby item detail line (charger info) */
+.nearby-item-detail {
+    font-size: 11px;
+    color: var(--accent-green);
+    margin-top: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 .nearby-item-info {
     flex: 1;
