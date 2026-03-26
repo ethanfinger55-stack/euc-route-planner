@@ -176,7 +176,7 @@
             </div>
 
             <!-- Connect EUC -->
-            <div class="sidebar-section collapsible collapsed-section">
+            <div class="sidebar-section collapsible">
                 <div class="section-header" data-collapse>
                     <h3><i class="fab fa-bluetooth-b"></i> Connect EUC</h3>
                     <i class="fas fa-chevron-down section-chevron"></i>
@@ -191,6 +191,9 @@
                     <span id="ble-status-indicator" class="ble-status-dot disconnected"></span>
                     <span id="ble-status-text">Not connected</span>
                 </div>
+                <!-- Connection log -->
+                <div id="ble-log" class="ble-log hidden"></div>
+                <!-- Connected telemetry -->
                 <div id="ble-telemetry" class="ble-telemetry hidden">
                     <div class="ble-tel-grid">
                         <div class="ble-tel-item">
@@ -222,6 +225,16 @@
                             <i class="fas fa-volume-up"></i>
                         </button>
                     </div>
+                </div>
+                <!-- Tips shown when disconnected -->
+                <div id="ble-tips" class="ble-tips">
+                    <p><i class="fas fa-info-circle"></i> <strong>Before connecting:</strong></p>
+                    <ul>
+                        <li>Turn on your wheel & make sure it's powered up</li>
+                        <li>Use <strong>Chrome</strong> or <strong>Edge</strong> browser</li>
+                        <li>Allow Bluetooth when your phone asks</li>
+                        <li>Close the InMotion app if it's open</li>
+                    </ul>
                 </div>
                 </div>
             </div>

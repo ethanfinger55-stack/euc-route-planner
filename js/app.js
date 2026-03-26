@@ -3111,9 +3111,28 @@
         return navigator.bluetooth != null;
     }
 
+    function bleLog(msg, type) {
+        // type: 'step', 'ok', 'warn', 'error'
+        const log = $('#ble-log');
+        if (!log) return;
+        log.classList.remove('hidden');
+        const icons = { step: 'fa-circle-notch fa-spin', ok: 'fa-check-circle', warn: 'fa-exclamation-triangle', error: 'fa-times-circle' };
+        const colors = { step: '#f39c12', ok: '#2ecc71', warn: '#f39c12', error: '#e74c3c' };
+        const div = document.createElement('div');
+        div.className = 'ble-log-entry';
+        div.innerHTML = '<i class="fas ' + (icons[type] || icons.step) + '" style="color:' + (colors[type] || colors.step) + '"></i> ' + msg;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function bleClearLog() {
+        const log = $('#ble-log');
+        if (log) { log.innerHTML = ''; log.classList.add('hidden'); }
+    }
+
     async function connectWheel() {
         if (!isBleSupported()) {
-            alert('Web Bluetooth is not supported in this browser. Use Chrome or Edge on Android/Desktop.');
+            alert('Web Bluetooth is not supported in this browser.\n\nPlease use Chrome or Edge on Android or Desktop.\n(iOS Safari does not support Web Bluetooth)');
             return;
         }
         if (bleConnected) {
@@ -3121,79 +3140,162 @@
             return;
         }
 
+        bleClearLog();
+        bleLog('Checking Bluetooth availability...', 'step');
+
+        // Check if Bluetooth is available (adapter present & enabled)
         try {
-            updateBleStatus('scanning');
-            // Use multiple filter strategies so the picker shows any InMotion wheel.
-            // Many wheels don't advertise service UUIDs, so we also match by name prefix.
-            bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [
-                    { services: [BLE_V2_SERVICE] },
-                    { services: [BLE_V1_SERVICE] },
-                    { namePrefix: 'InMotion' },
-                    { namePrefix: 'INMOTION' },
-                    { namePrefix: 'V11' },
-                    { namePrefix: 'V12' },
-                    { namePrefix: 'V13' },
-                    { namePrefix: 'V14' },
-                    { namePrefix: 'V9' },
-                    { namePrefix: 'P6' }
-                ],
-                optionalServices: [BLE_V2_SERVICE, BLE_V1_SERVICE, BLE_V1_WRITE_SERVICE]
-            });
-
-            bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
-            updateBleStatus('connecting');
-
-            bleServer = await bleDevice.gatt.connect();
-
-            // Try V2 (NUS) UUIDs first, then fall back to V1
-            let connected = false;
-            try {
-                const nusService = await bleServer.getPrimaryService(BLE_V2_SERVICE);
-                bleNotifyChar = await nusService.getCharacteristic(BLE_V2_READ);
-                bleWriteChar = await nusService.getCharacteristic(BLE_V2_WRITE);
-                bleProtocol = 'v2';
-                connected = true;
-                console.log('Connected via V2 (NUS) UUIDs');
-            } catch (e) {
-                console.log('V2 service not found, trying V1 UUIDs');
+            const available = await navigator.bluetooth.getAvailability();
+            if (!available) {
+                bleLog('Bluetooth is turned OFF on your device', 'error');
+                bleLog('Please enable Bluetooth in your phone/device settings and try again', 'warn');
+                updateBleStatus('bt-off');
+                return;
             }
+            bleLog('Bluetooth is enabled', 'ok');
+        } catch (e) {
+            // getAvailability() not supported in all browsers — continue anyway
+            bleLog('Bluetooth check skipped (browser limitation)', 'warn');
+        }
 
-            if (!connected) {
+        updateBleStatus('scanning');
+        bleLog('Opening device picker — select your wheel from the list...', 'step');
+        bleLog('If no devices appear, tap "Scan" or check that your wheel is on', 'warn');
+
+        // Step 1: Request device — try filtered scan first, then acceptAllDevices fallback
+        try {
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { services: [BLE_V2_SERVICE] },
+                        { services: [BLE_V1_SERVICE] },
+                        { namePrefix: 'InMotion' },
+                        { namePrefix: 'INMOTION' },
+                        { namePrefix: 'V11' },
+                        { namePrefix: 'V12' },
+                        { namePrefix: 'V13' },
+                        { namePrefix: 'V14' },
+                        { namePrefix: 'V9' },
+                        { namePrefix: 'P6' },
+                        { namePrefix: 'IM-' }
+                    ],
+                    optionalServices: [BLE_V2_SERVICE, BLE_V1_SERVICE, BLE_V1_WRITE_SERVICE]
+                });
+            } catch (filterErr) {
+                // If user cancelled, stop. Otherwise offer scan-all fallback.
+                if (filterErr.name === 'NotFoundError') {
+                    bleLog('No InMotion device found in filtered scan', 'warn');
+                    bleLog('Trying broader scan — showing ALL nearby Bluetooth devices...', 'step');
+                    bleDevice = await navigator.bluetooth.requestDevice({
+                        acceptAllDevices: true,
+                        optionalServices: [BLE_V2_SERVICE, BLE_V1_SERVICE, BLE_V1_WRITE_SERVICE]
+                    });
+                } else {
+                    throw filterErr;
+                }
+            }
+        } catch (err) {
+            if (err.name === 'NotFoundError' || err.message?.includes('cancelled')) {
+                bleLog('Device selection cancelled', 'warn');
+                updateBleStatus('disconnected');
+            } else if (err.name === 'SecurityError' || err.message?.includes('permission') || err.message?.includes('denied')) {
+                bleLog('Bluetooth permission denied by your browser/phone', 'error');
+                bleLog('Go to your phone Settings → Apps → Chrome → Permissions and enable Bluetooth & Location', 'warn');
+                updateBleStatus('no-permission');
+            } else if (err.name === 'NotSupportedError') {
+                bleLog('Web Bluetooth not supported — use Chrome or Edge', 'error');
+                updateBleStatus('disconnected');
+            } else {
+                bleLog('Scan error: ' + err.message, 'error');
+                updateBleStatus('error');
+            }
+            return;
+        }
+
+        const deviceName = bleDevice.name || 'Unknown device';
+        bleLog('Selected: <strong>' + deviceName + '</strong>', 'ok');
+
+        // Step 2: Connect GATT server
+        bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+        updateBleStatus('connecting');
+        bleLog('Connecting to GATT server...', 'step');
+
+        try {
+            bleServer = await bleDevice.gatt.connect();
+            bleLog('GATT server connected', 'ok');
+        } catch (err) {
+            bleLog('Failed to connect: ' + err.message, 'error');
+            bleLog('Make sure the wheel is on and nearby, then try again', 'warn');
+            updateBleStatus('error');
+            return;
+        }
+
+        // Step 3: Discover services and characteristics
+        bleLog('Discovering services...', 'step');
+        let svcConnected = false;
+
+        // Try V2 (NUS) first
+        try {
+            const nusService = await bleServer.getPrimaryService(BLE_V2_SERVICE);
+            bleLog('Found V2 (NUS) service', 'ok');
+            bleNotifyChar = await nusService.getCharacteristic(BLE_V2_READ);
+            bleWriteChar = await nusService.getCharacteristic(BLE_V2_WRITE);
+            bleProtocol = 'v2';
+            svcConnected = true;
+            bleLog('V2 characteristics ready', 'ok');
+        } catch (e) {
+            bleLog('V2 service not found, trying V1...', 'warn');
+        }
+
+        // Try V1 if V2 failed
+        if (!svcConnected) {
+            try {
                 const notifyService = await bleServer.getPrimaryService(BLE_V1_SERVICE);
+                bleLog('Found V1 service', 'ok');
                 bleNotifyChar = await notifyService.getCharacteristic(BLE_V1_NOTIFY);
                 try {
                     const writeService = await bleServer.getPrimaryService(BLE_V1_WRITE_SERVICE);
                     bleWriteChar = await writeService.getCharacteristic(BLE_V1_WRITE_CHAR);
                 } catch (e) {
-                    console.warn('V1 write characteristic not found');
+                    bleLog('V1 write service not found (read-only mode)', 'warn');
                     bleWriteChar = null;
                 }
-                bleProtocol = 'v2'; // still uses V2 message framing
-            }
-
-            // Subscribe to notifications
-            await bleNotifyChar.startNotifications();
-            bleNotifyChar.addEventListener('characteristicvaluechanged', onBleData);
-
-            bleConnected = true;
-            bleV2StateCon = 0;
-            bleV2UpdateStep = 0;
-            bleUnpackerState = 'unknown';
-            bleUnpackerBuffer = [];
-            bleUnpackerOldc = 0;
-
-            updateBleStatus('connected');
-            startBleKeepAlive();
-
-        } catch (err) {
-            console.warn('BLE connection error:', err);
-            if (err.name !== 'NotFoundError') { // User cancelled picker
+                bleProtocol = 'v2';
+                svcConnected = true;
+                bleLog('V1 characteristics ready', 'ok');
+            } catch (e) {
+                bleLog('No compatible InMotion service found on this device', 'error');
+                bleLog('This device may not be an InMotion wheel, or uses a different protocol', 'warn');
+                if (bleServer && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
                 updateBleStatus('error');
-            } else {
-                updateBleStatus('disconnected');
+                return;
             }
         }
+
+        // Step 4: Subscribe to notifications
+        bleLog('Subscribing to data notifications...', 'step');
+        try {
+            await bleNotifyChar.startNotifications();
+            bleNotifyChar.addEventListener('characteristicvaluechanged', onBleData);
+            bleLog('Listening for wheel data', 'ok');
+        } catch (err) {
+            bleLog('Failed to subscribe to notifications: ' + err.message, 'error');
+            if (bleServer && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+            updateBleStatus('error');
+            return;
+        }
+
+        // Step 5: Connected!
+        bleConnected = true;
+        bleV2StateCon = 0;
+        bleV2UpdateStep = 0;
+        bleUnpackerState = 'unknown';
+        bleUnpackerBuffer = [];
+        bleUnpackerOldc = 0;
+
+        bleLog('Connected! Requesting wheel info...', 'ok');
+        updateBleStatus('connected');
+        startBleKeepAlive();
     }
 
     function disconnectWheel() {
@@ -3214,6 +3316,7 @@
         bleWriteChar = null;
         bleModel = 'Unknown';
         bleWheelData = { speed: 0, voltage: 0, current: 0, battery: 0, temperature: 0, temperature2: 0, distance: 0, power: 0, speedMph: 0, pwm: 0 };
+        bleClearLog();
         updateBleStatus('disconnected');
         updateBleTelemetry();
     }
@@ -3224,6 +3327,7 @@
             clearInterval(bleKeepAliveTimer);
             bleKeepAliveTimer = null;
         }
+        bleLog('Wheel disconnected', 'warn');
         updateBleStatus('disconnected');
     }
 
@@ -3231,13 +3335,14 @@
         const btn = $('#ble-connect-btn');
         const statusEl = $('#ble-status-text');
         const indicator = $('#ble-status-indicator');
+        const tips = $('#ble-tips');
         if (!btn) return;
 
         switch (status) {
             case 'scanning':
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
                 btn.disabled = true;
-                if (statusEl) statusEl.textContent = 'Scanning...';
+                if (statusEl) statusEl.textContent = 'Opening device picker...';
                 if (indicator) indicator.className = 'ble-status-dot scanning';
                 break;
             case 'connecting':
@@ -3250,7 +3355,7 @@
                 btn.innerHTML = '<i class="fas fa-link"></i> Disconnect';
                 btn.disabled = false;
                 btn.classList.add('ble-connected');
-                if (statusEl) statusEl.textContent = bleModel || 'Connected';
+                if (statusEl) statusEl.textContent = bleModel !== 'Unknown' ? bleModel : 'Connected';
                 if (indicator) indicator.className = 'ble-status-dot connected';
                 break;
             case 'disconnected':
@@ -3261,19 +3366,32 @@
                 if (indicator) indicator.className = 'ble-status-dot disconnected';
                 break;
             case 'error':
-                btn.innerHTML = '<i class="fab fa-bluetooth-b"></i> Connect Wheel';
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Retry Connection';
                 btn.disabled = false;
                 btn.classList.remove('ble-connected');
-                if (statusEl) statusEl.textContent = 'Connection failed';
-                if (indicator) indicator.className = 'ble-status-dot disconnected';
+                if (statusEl) statusEl.textContent = 'Connection failed — see log below';
+                if (indicator) indicator.className = 'ble-status-dot error';
+                break;
+            case 'bt-off':
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Bluetooth is Off';
+                btn.disabled = false;
+                btn.classList.remove('ble-connected');
+                if (statusEl) statusEl.textContent = 'Enable Bluetooth and retry';
+                if (indicator) indicator.className = 'ble-status-dot error';
+                break;
+            case 'no-permission':
+                btn.innerHTML = '<i class="fas fa-lock"></i> Permission Needed';
+                btn.disabled = false;
+                btn.classList.remove('ble-connected');
+                if (statusEl) statusEl.textContent = 'Bluetooth permission denied';
+                if (indicator) indicator.className = 'ble-status-dot error';
                 break;
         }
 
-        // Show/hide telemetry panel
+        // Show/hide telemetry panel and tips
         const telPanel = $('#ble-telemetry');
-        if (telPanel) {
-            telPanel.classList.toggle('hidden', status !== 'connected');
-        }
+        if (telPanel) telPanel.classList.toggle('hidden', status !== 'connected');
+        if (tips) tips.classList.toggle('hidden', status === 'connected');
     }
 
     // ===== BLE Protocol: InMotion V2 =====
