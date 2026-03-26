@@ -193,6 +193,23 @@
     let bleV2UpdateStep = 0;
     let bleLightOn = false; // track light state for toggling
 
+    // BLE feature flags
+    let bleAutoLight = false;       // auto headlight by sunrise/sunset
+    let bleTurnBeep = false;        // beep before turns
+    let bleSpeedAlert = true;       // visual speed overspeed alert
+    let bleTurnBeeped = false;      // prevent double-beep per step
+    let bleSpeedAlertActive = false;
+    let bleAutoLightApplied = false; // track if auto-light was already applied this session
+
+    // Ride tracking – wheel stats
+    let rideWheelDistStart = null;  // wheel distance (m) at ride start
+    let ridePowerLog = [];          // log of power readings during ride
+    let rideBatteryStart = null;    // battery % at ride start
+
+    // Odometer
+    let bleSessionDistStart = null; // wheel distance (m) when BLE connected
+    let bleMaintenanceMiles = 500;  // remind every N miles
+
     // BLE constants — V1 UUIDs (V5/V8/V10 series)
     const BLE_V1_SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
     const BLE_V1_NOTIFY = '0000ffe4-0000-1000-8000-00805f9b34fb';
@@ -2549,6 +2566,14 @@
         rideTopSpeed = 0;
         rideMaxRoadSpeed = null;
 
+        // Init wheel ride stats
+        rideWheelDistStart = bleConnected ? bleWheelData.distance : null;
+        ridePowerLog = [];
+        rideBatteryStart = bleConnected ? bleWheelData.battery : null;
+        bleTurnBeeped = false;
+        bleSpeedAlertActive = false;
+        bleAutoLightApplied = false;
+
         // Collapse sidebar on mobile for full map view
         if (window.innerWidth <= 768 && !sidebar.classList.contains('collapsed')) {
             toggleSidebar();
@@ -2573,6 +2598,11 @@
         // Show floating speedometer
         const floatSpeed = $('#floating-speedometer');
         if (floatSpeed) floatSpeed.classList.remove('hidden');
+
+        // Show range badge if wheel connected
+        if (bleConnected) {
+            updateNavRangeBadge();
+        }
 
         // Hide floating map nav button
         const mapNavBtn = $('#map-start-nav-btn');
@@ -2643,6 +2673,15 @@
         // Hide floating speedometer
         const floatSpeed = $('#floating-speedometer');
         if (floatSpeed) floatSpeed.classList.add('hidden');
+
+        // Hide BLE feature overlays
+        const rangeBadge = $('#nav-range-badge');
+        if (rangeBadge) rangeBadge.classList.add('hidden');
+        const speedAlert = $('#speed-alert-overlay');
+        if (speedAlert) speedAlert.classList.add('hidden');
+        const geoWarn = $('#geofence-warning');
+        if (geoWarn) geoWarn.classList.add('hidden');
+        bleSpeedAlertActive = false;
 
         // Show legend again
         speedLegend.classList.remove('hidden');
@@ -2728,6 +2767,15 @@
             updateNavHUD(step, distToStepKm);
         }
 
+        // Feature 2: Speed limit alert
+        checkSpeedAlert();
+
+        // Feature 4: Auto headlight
+        checkAutoHeadlight();
+
+        // Feature 7: Geofence warnings
+        checkGeofenceWarning();
+
         // Check arrival at destination
         const lastCoord = navRouteCoords[navRouteCoords.length - 1];
         const distToEnd = haversineDistance(userCoord, lastCoord);
@@ -2799,6 +2847,7 @@
 
         if (bestIdx !== navCurrentStepIdx) {
             navCurrentStepIdx = bestIdx;
+            bleTurnBeeped = false; // reset for new step
             updateNavStepHighlight();
         }
     }
@@ -2851,6 +2900,9 @@
         // Instruction text
         if (instrEl) instrEl.textContent = step.instruction;
         if (bannerInstrEl) bannerInstrEl.textContent = step.instruction;
+
+        // Feature 5: Turn beep alert
+        checkTurnBeep(distToStepKm);
 
         // Speed limit for current segment
         if (speedEl && navSpeedData) {
@@ -2928,6 +2980,41 @@
         $('#ride-stat-top-speed').textContent = rideTopSpeed + ' mph';
         $('#ride-stat-elevation').textContent = Math.round(elevGainFt) + ' ft';
         $('#ride-stat-max-speed-road').textContent = rideMaxRoadSpeed != null ? rideMaxRoadSpeed + ' mph' : 'N/A';
+
+        // Wheel stats (only if BLE was connected)
+        const wheelStatsVisible = rideWheelDistStart != null && bleWheelData.distance > 0;
+        const wheelDistWrap = $('#ride-stat-wheel-dist-wrap');
+        const battUsedWrap = $('#ride-stat-batt-used-wrap');
+        const avgPowerWrap = $('#ride-stat-avg-power-wrap');
+        const peakPowerWrap = $('#ride-stat-peak-power-wrap');
+
+        if (wheelStatsVisible) {
+            const wheelDistMi = ((bleWheelData.distance - rideWheelDistStart) / 1609.34).toFixed(2);
+            if (wheelDistWrap) { wheelDistWrap.classList.remove('hidden'); $('#ride-stat-wheel-dist').textContent = wheelDistMi + ' mi'; }
+
+            if (battUsedWrap && rideBatteryStart != null) {
+                const battUsed = rideBatteryStart - bleWheelData.battery;
+                battUsedWrap.classList.remove('hidden');
+                $('#ride-stat-batt-used').textContent = Math.max(0, battUsed) + '%';
+            }
+
+            if (avgPowerWrap && ridePowerLog.length > 0) {
+                const avg = Math.round(ridePowerLog.reduce((a, b) => a + b, 0) / ridePowerLog.length);
+                avgPowerWrap.classList.remove('hidden');
+                $('#ride-stat-avg-power').textContent = avg + ' W';
+            }
+
+            if (peakPowerWrap && ridePowerLog.length > 0) {
+                const peak = Math.max(...ridePowerLog);
+                peakPowerWrap.classList.remove('hidden');
+                $('#ride-stat-peak-power').textContent = peak + ' W';
+            }
+        } else {
+            if (wheelDistWrap) wheelDistWrap.classList.add('hidden');
+            if (battUsedWrap) battUsedWrap.classList.add('hidden');
+            if (avgPowerWrap) avgPowerWrap.classList.add('hidden');
+            if (peakPowerWrap) peakPowerWrap.classList.add('hidden');
+        }
 
         overlay.classList.remove('hidden');
     }
@@ -3424,6 +3511,17 @@
         if (telPanel) telPanel.classList.toggle('hidden', status !== 'connected');
         if (tips) tips.classList.toggle('hidden', status === 'connected');
 
+        // Show/hide diagnostics and odometer panels
+        const diagPanel = $('#ble-diagnostics');
+        if (diagPanel) diagPanel.classList.toggle('hidden', status !== 'connected');
+        const odoPanel = $('#ble-odometer');
+        if (odoPanel) odoPanel.classList.toggle('hidden', status !== 'connected');
+
+        // Reset session distance on connect
+        if (status === 'connected') {
+            bleSessionDistStart = null;
+        }
+
         // Show/hide nav HUD light & beep buttons
         const navLight = $('#nav-light-btn');
         const navBeep = $('#nav-beep-btn');
@@ -3622,9 +3720,18 @@
         if (bleSpeedSource === 'wheel' && navActive) {
             navCurrentSpeedMph = bleWheelData.speedMph;
             updateSpeedometer();
+            checkSpeedAlert();
         }
 
         updateBleTelemetry();
+        updateDiagnostics();
+        updateOdometer();
+        updateNavRangeBadge();
+
+        // Track power for ride stats
+        if (navActive) {
+            ridePowerLog.push(bleWheelData.power);
+        }
     }
 
     function bleGetModelName(series, type) {
@@ -3706,6 +3813,256 @@
             bleLog('Beep sent', 'ok');
         } catch (e) {
             bleLog('Beep failed: ' + e.message, 'error');
+        }
+    }
+
+    // ===== Feature 1: Live Battery → Range Estimator =====
+    function updateNavRangeBadge() {
+        const badge = $('#nav-range-badge');
+        if (!badge || !navActive) return;
+        if (!bleConnected || bleWheelData.battery <= 0) {
+            badge.classList.add('hidden');
+            return;
+        }
+        badge.classList.remove('hidden');
+
+        const rangeInput = document.getElementById('wheel-range');
+        const wheelRange = parseFloat(rangeInput?.value) || 30;
+        const batt = bleWheelData.battery;
+        const estimatedRange = (batt / 100) * wheelRange;
+
+        const pctEl = $('#nav-range-pct');
+        const miEl = $('#nav-range-mi');
+        if (pctEl) pctEl.textContent = batt + '%';
+        if (miEl) miEl.textContent = estimatedRange.toFixed(1) + ' mi';
+
+        // Remaining route distance
+        let remainingMi = 0;
+        if (navSteps) {
+            for (let i = navCurrentStepIdx; i < navSteps.length; i++) {
+                remainingMi += navSteps[i].distance;
+            }
+        }
+
+        badge.classList.remove('low', 'critical');
+        if (estimatedRange < remainingMi) {
+            badge.classList.add('critical');
+        } else if (estimatedRange < remainingMi * 1.3) {
+            badge.classList.add('low');
+        }
+    }
+
+    // ===== Feature 2: Speed Limit Alert =====
+    function checkSpeedAlert() {
+        if (!bleSpeedAlert || !navActive) return;
+        const overlay = $('#speed-alert-overlay');
+        if (!overlay) return;
+
+        const speed = bleSpeedSource === 'wheel' ? bleWheelData.speedMph : navCurrentSpeedMph;
+        const limit = navCurrentSpeedLimit;
+
+        if (limit != null && speed > limit + 3) {
+            if (!bleSpeedAlertActive) {
+                bleSpeedAlertActive = true;
+                overlay.classList.remove('hidden');
+                const textEl = $('#speed-alert-text');
+                if (textEl) textEl.textContent = `SLOW DOWN · ${speed} in a ${limit} zone`;
+                // Beep on first trigger
+                if (bleConnected && bleWriteChar) {
+                    blePlayBeep();
+                }
+            }
+        } else {
+            if (bleSpeedAlertActive) {
+                bleSpeedAlertActive = false;
+                overlay.classList.add('hidden');
+            }
+        }
+    }
+
+    // ===== Feature 4: Auto Headlight (sunrise/sunset) =====
+    function getSunTimes(lat, lng) {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 1);
+        const dayOfYear = Math.floor((now - start) / 86400000) + 1;
+        const radLat = lat * Math.PI / 180;
+
+        // Simplified sunrise/sunset calculation
+        const decl = 23.45 * Math.sin(2 * Math.PI / 365 * (dayOfYear - 81)) * Math.PI / 180;
+        const hourAngle = Math.acos(-Math.tan(radLat) * Math.tan(decl));
+        const solarNoon = 12 - lng / 15;
+        const sunriseHour = solarNoon - (hourAngle * 180 / Math.PI) / 15;
+        const sunsetHour = solarNoon + (hourAngle * 180 / Math.PI) / 15;
+
+        return { sunrise: sunriseHour, sunset: sunsetHour };
+    }
+
+    function checkAutoHeadlight() {
+        if (!bleAutoLight || !bleConnected || !bleWriteChar || !navActive) return;
+        if (!navLastPosition) return;
+
+        const sunTimes = getSunTimes(navLastPosition[0], navLastPosition[1]);
+        const now = new Date();
+        const currentHour = now.getHours() + now.getMinutes() / 60;
+
+        const isDark = currentHour < sunTimes.sunrise || currentHour > sunTimes.sunset;
+
+        if (isDark && !bleLightOn && !bleAutoLightApplied) {
+            bleAutoLightApplied = true;
+            bleToggleLight(); // Turn on
+        } else if (!isDark && bleLightOn && bleAutoLightApplied) {
+            bleAutoLightApplied = false;
+            bleToggleLight(); // Turn off
+        }
+    }
+
+    // ===== Feature 5: Turn-by-Turn Beep Alert =====
+    function checkTurnBeep(distToStepKm) {
+        if (!bleTurnBeep || !bleConnected || !bleWriteChar || !navActive) return;
+        const distFt = distToStepKm * 3280.84;
+
+        // Beep at ~200 ft before turn
+        if (distFt <= 200 && distFt > 30 && !bleTurnBeeped) {
+            bleTurnBeeped = true;
+            blePlayBeep();
+        } else if (distFt > 250) {
+            // Reset for next turn approach
+            bleTurnBeeped = false;
+        }
+    }
+
+    // ===== Feature 6: Wheel Diagnostics =====
+    function updateDiagnostics() {
+        if (!bleConnected) return;
+        const vEl = $('#diag-voltage');
+        const cEl = $('#diag-current');
+        const tEl = $('#diag-temp');
+        const pEl = $('#diag-power');
+        const pwmEl = $('#diag-pwm');
+        const bEl = $('#diag-battery');
+
+        if (vEl) vEl.textContent = (bleWheelData.voltage / 100).toFixed(1) + ' V';
+        if (cEl) {
+            const amps = (bleWheelData.current / 100).toFixed(1);
+            cEl.textContent = amps + ' A';
+        }
+        if (tEl) tEl.textContent = (bleWheelData.temperature / 100).toFixed(0) + ' °C';
+        if (pEl) pEl.textContent = bleWheelData.power + ' W';
+        if (pwmEl) pwmEl.textContent = bleWheelData.pwm + ' %';
+        if (bEl) {
+            bEl.textContent = bleWheelData.battery + ' %';
+            // Color code battery
+            if (bleWheelData.battery <= 15) {
+                bEl.style.color = '#e74c3c';
+            } else if (bleWheelData.battery <= 30) {
+                bEl.style.color = '#f39c12';
+            } else {
+                bEl.style.color = '#2ecc71';
+            }
+        }
+    }
+
+    // ===== Feature 7: Geofence Speed Warnings =====
+    function checkGeofenceWarning() {
+        if (!navActive || !navSpeedData || !navSteps) return;
+        const warning = $('#geofence-warning');
+        const textEl = $('#geofence-text');
+        if (!warning || !textEl) return;
+
+        const step = navSteps[navCurrentStepIdx];
+        if (!step) { warning.classList.add('hidden'); return; }
+
+        const wpIdx = Math.min(step.way_points[0], navSpeedData.length - 1);
+        const sd = navSpeedData[wpIdx];
+        if (!sd) { warning.classList.add('hidden'); return; }
+
+        const roadName = (sd.name || '').toLowerCase();
+        const limit = sd.mph;
+        const iconEl = warning.querySelector('i');
+
+        let zoneType = null;
+        if (roadName.includes('school') || roadName.includes('campus')) {
+            zoneType = 'School Zone';
+            if (iconEl) iconEl.className = 'fas fa-school';
+        } else if (roadName.includes('park') || roadName.includes('trail') || roadName.includes('path')) {
+            zoneType = 'Park / Trail';
+            if (iconEl) iconEl.className = 'fas fa-tree';
+        } else if (roadName.includes('playground') || roadName.includes('child')) {
+            zoneType = 'Playground Area';
+            if (iconEl) iconEl.className = 'fas fa-child';
+        } else if (roadName.includes('hospital') || roadName.includes('medical')) {
+            zoneType = 'Hospital Zone';
+            if (iconEl) iconEl.className = 'fas fa-hospital';
+        } else if (limit != null && limit <= 15) {
+            zoneType = 'Slow Zone · ' + limit + ' mph';
+            if (iconEl) iconEl.className = 'fas fa-exclamation-circle';
+        }
+
+        if (zoneType) {
+            textEl.textContent = zoneType;
+            warning.classList.remove('hidden');
+        } else {
+            warning.classList.add('hidden');
+        }
+    }
+
+    // ===== Feature 8: Odometer & Maintenance =====
+    function updateOdometer() {
+        if (!bleConnected) return;
+
+        const tripEl = $('#odo-trip');
+        const sessionEl = $('#odo-session');
+
+        if (bleSessionDistStart == null && bleWheelData.distance > 0) {
+            bleSessionDistStart = bleWheelData.distance;
+        }
+
+        if (tripEl && rideWheelDistStart != null && bleWheelData.distance > 0) {
+            const tripMi = ((bleWheelData.distance - rideWheelDistStart) / 1609.34).toFixed(2);
+            tripEl.textContent = tripMi + ' mi';
+        }
+
+        if (sessionEl && bleSessionDistStart != null && bleWheelData.distance > 0) {
+            const sessMi = ((bleWheelData.distance - bleSessionDistStart) / 1609.34).toFixed(2);
+            sessionEl.textContent = sessMi + ' mi';
+        }
+
+        checkMaintenanceAlerts();
+    }
+
+    function checkMaintenanceAlerts() {
+        const container = $('#maintenance-alerts');
+        if (!container) return;
+
+        const totalKm = bleWheelData.distance / 1000;
+        const totalMi = totalKm * 0.621371;
+        const lastCheck = parseFloat(localStorage.getItem('euc_last_maint_mi') || '0');
+        const sinceCheck = totalMi - lastCheck;
+
+        container.innerHTML = '';
+
+        if (sinceCheck >= bleMaintenanceMiles && totalMi > 0) {
+            const alert = document.createElement('div');
+            alert.className = 'maintenance-alert-item';
+            alert.innerHTML = '<i class="fas fa-wrench"></i> <span>Check tire pressure & bolts (' +
+                Math.round(sinceCheck) + ' mi since last check)</span>';
+            alert.addEventListener('click', () => {
+                localStorage.setItem('euc_last_maint_mi', String(Math.round(totalMi)));
+                container.innerHTML = '';
+            });
+            alert.style.cursor = 'pointer';
+            alert.title = 'Tap to dismiss and reset';
+            container.appendChild(alert);
+        }
+
+        // Temperature warning
+        const tempC = bleWheelData.temperature / 100;
+        if (tempC > 60) {
+            const alert = document.createElement('div');
+            alert.className = 'maintenance-alert-item';
+            alert.innerHTML = '<i class="fas fa-thermometer-full"></i> <span>High MOS temp: ' +
+                tempC.toFixed(0) + '°C — consider resting</span>';
+            container.appendChild(alert);
         }
     }
 
@@ -3874,5 +4231,40 @@
         // Restore saved speed source preference
         const savedSpeedSource = localStorage.getItem('euc_speed_source');
         if (savedSpeedSource) bleSpeedSource = savedSpeedSource;
+
+        // BLE feature toggles
+        const autoLightToggle = $('#ble-auto-light');
+        if (autoLightToggle) {
+            autoLightToggle.checked = localStorage.getItem('euc_auto_light') === 'true';
+            bleAutoLight = autoLightToggle.checked;
+            autoLightToggle.addEventListener('change', () => {
+                bleAutoLight = autoLightToggle.checked;
+                localStorage.setItem('euc_auto_light', bleAutoLight);
+            });
+        }
+        const turnBeepToggle = $('#ble-turn-beep');
+        if (turnBeepToggle) {
+            turnBeepToggle.checked = localStorage.getItem('euc_turn_beep') === 'true';
+            bleTurnBeep = turnBeepToggle.checked;
+            turnBeepToggle.addEventListener('change', () => {
+                bleTurnBeep = turnBeepToggle.checked;
+                localStorage.setItem('euc_turn_beep', turnBeepToggle.checked);
+            });
+        }
+        const speedAlertToggle = $('#ble-speed-alert');
+        if (speedAlertToggle) {
+            const savedSpeedAlert = localStorage.getItem('euc_speed_alert');
+            speedAlertToggle.checked = savedSpeedAlert !== 'false';
+            bleSpeedAlert = speedAlertToggle.checked;
+            speedAlertToggle.addEventListener('change', () => {
+                bleSpeedAlert = speedAlertToggle.checked;
+                localStorage.setItem('euc_speed_alert', speedAlertToggle.checked);
+                if (!bleSpeedAlert) {
+                    const overlay = $('#speed-alert-overlay');
+                    if (overlay) overlay.classList.add('hidden');
+                    bleSpeedAlertActive = false;
+                }
+            });
+        }
     });
 })();

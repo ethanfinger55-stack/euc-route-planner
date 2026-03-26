@@ -2973,3 +2973,229 @@ input[type="checkbox"] {
 .floating-speedometer {
     cursor: pointer;
 }
+
+/* ===== BLE Feature Toggles ===== */
+.ble-feature-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,.08);
+}
+.ble-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 0;
+}
+.ble-toggle-row span:first-child i {
+    width: 18px;
+    text-align: center;
+    margin-right: 6px;
+    color: var(--accent-blue);
+}
+.ble-toggle-check {
+    display: none;
+}
+.ble-toggle-slider {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: rgba(255,255,255,.15);
+    border-radius: 10px;
+    transition: background .2s;
+    flex-shrink: 0;
+}
+.ble-toggle-slider::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .2s;
+}
+.ble-toggle-check:checked + .ble-toggle-slider {
+    background: var(--accent-blue);
+}
+.ble-toggle-check:checked + .ble-toggle-slider::after {
+    transform: translateX(16px);
+}
+
+/* ===== BLE Diagnostics Panel ===== */
+.ble-diagnostics {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,.08);
+}
+.ble-diag-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 8px;
+}
+.ble-diag-title i {
+    color: var(--accent-blue);
+    margin-right: 6px;
+}
+.ble-diag-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.ble-diag-item {
+    background: rgba(255,255,255,.05);
+    border-radius: 6px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ble-diag-label {
+    font-size: 10px;
+    color: rgba(255,255,255,.45);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+.ble-diag-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+}
+
+/* ===== Odometer & Maintenance ===== */
+.ble-odometer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,.08);
+}
+.ble-odo-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+.maintenance-alerts {
+    margin-top: 6px;
+}
+.maintenance-alert-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(231, 76, 60, .12);
+    border: 1px solid rgba(231, 76, 60, .25);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--accent-orange);
+}
+.maintenance-alert-item i {
+    font-size: 14px;
+    color: var(--accent-red);
+}
+
+/* ===== Nav Range Badge ===== */
+.nav-range-badge {
+    position: fixed;
+    right: 16px;
+    bottom: 350px;
+    z-index: 1500;
+    background: rgba(22, 33, 62, .92);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-green);
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+    backdrop-filter: blur(8px);
+    transition: color .3s, border-color .3s;
+}
+.nav-range-badge.low {
+    color: var(--accent-orange);
+    border-color: var(--accent-orange);
+}
+.nav-range-badge.critical {
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+    animation: pulse-glow 1.5s infinite;
+}
+.nav-range-mi {
+    font-size: 11px;
+    font-weight: 600;
+    opacity: .7;
+}
+
+/* ===== Speed Alert Overlay ===== */
+.speed-alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2500;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+.speed-alert-content {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 900;
+    padding: 12px 32px;
+    border-radius: 0 0 16px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 6px 24px rgba(231, 76, 60, .5);
+    animation: speed-alert-flash .6s infinite alternate;
+    letter-spacing: 1px;
+}
+@keyframes speed-alert-flash {
+    from { opacity: 1; }
+    to { opacity: .7; }
+}
+
+/* ===== Geofence Zone Warning ===== */
+.geofence-warning {
+    position: fixed;
+    bottom: 260px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1500;
+    background: rgba(243, 156, 18, .92);
+    color: #1a1a2e;
+    font-size: 14px;
+    font-weight: 800;
+    padding: 8px 20px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(243, 156, 18, .4);
+    backdrop-filter: blur(8px);
+    animation: geofence-pulse 2s infinite;
+}
+@keyframes geofence-pulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.04); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 4px 16px rgba(231, 76, 60, .4); }
+    50% { box-shadow: 0 4px 24px rgba(231, 76, 60, .7); }
+}

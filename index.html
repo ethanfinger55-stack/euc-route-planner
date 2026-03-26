@@ -225,6 +225,67 @@
                             <i class="fas fa-volume-up"></i>
                         </button>
                     </div>
+                    <!-- BLE Feature Toggles -->
+                    <div class="ble-feature-toggles">
+                        <label class="ble-toggle-row">
+                            <span><i class="fas fa-sun"></i> Auto Headlight</span>
+                            <input type="checkbox" id="ble-auto-light" class="ble-toggle-check">
+                            <span class="ble-toggle-slider"></span>
+                        </label>
+                        <label class="ble-toggle-row">
+                            <span><i class="fas fa-bell"></i> Turn Beep Alert</span>
+                            <input type="checkbox" id="ble-turn-beep" class="ble-toggle-check">
+                            <span class="ble-toggle-slider"></span>
+                        </label>
+                        <label class="ble-toggle-row">
+                            <span><i class="fas fa-exclamation-triangle"></i> Speed Alert</span>
+                            <input type="checkbox" id="ble-speed-alert" class="ble-toggle-check" checked>
+                            <span class="ble-toggle-slider"></span>
+                        </label>
+                    </div>
+                    <!-- Wheel Diagnostics -->
+                    <div id="ble-diagnostics" class="ble-diagnostics hidden">
+                        <div class="ble-diag-title"><i class="fas fa-stethoscope"></i> Diagnostics</div>
+                        <div class="ble-diag-grid">
+                            <div class="ble-diag-item">
+                                <span class="ble-diag-label">Voltage</span>
+                                <span id="diag-voltage" class="ble-diag-value">—</span>
+                            </div>
+                            <div class="ble-diag-item">
+                                <span class="ble-diag-label">Current</span>
+                                <span id="diag-current" class="ble-diag-value">—</span>
+                            </div>
+                            <div class="ble-diag-item">
+                                <span class="ble-diag-label">MOS Temp</span>
+                                <span id="diag-temp" class="ble-diag-value">—</span>
+                            </div>
+                            <div class="ble-diag-item">
+                                <span class="ble-diag-label">Power</span>
+                                <span id="diag-power" class="ble-diag-value">—</span>
+                            </div>
+                            <div class="ble-diag-item">
+                                <span class="ble-diag-label">Load (PWM)</span>
+                                <span id="diag-pwm" class="ble-diag-value">—</span>
+                            </div>
+                            <div class="ble-diag-item">
+                                <span class="ble-diag-label">Battery</span>
+                                <span id="diag-battery" class="ble-diag-value">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Odometer & Maintenance -->
+                    <div id="ble-odometer" class="ble-odometer hidden">
+                        <div class="ble-diag-title"><i class="fas fa-road"></i> Odometer</div>
+                        <div class="ble-odo-row">
+                            <span>Trip Distance</span>
+                            <span id="odo-trip" class="ble-diag-value">0 mi</span>
+                        </div>
+                        <div class="ble-odo-row">
+                            <span>Session Distance</span>
+                            <span id="odo-session" class="ble-diag-value">0 mi</span>
+                        </div>
+                        <div id="maintenance-alerts" class="maintenance-alerts"></div>
+                    </div>
                 </div>
                 <!-- Tips shown when disconnected -->
                 <div id="ble-tips" class="ble-tips">
@@ -391,6 +452,27 @@
             <div id="speed-source-label" class="speed-source-label">GPS</div>
         </div>
 
+        <!-- Live Range Badge (during nav, below speedometer) -->
+        <div id="nav-range-badge" class="nav-range-badge hidden">
+            <i class="fas fa-battery-half"></i>
+            <span id="nav-range-pct">100%</span>
+            <span id="nav-range-mi" class="nav-range-mi">30 mi</span>
+        </div>
+
+        <!-- Speed Alert Overlay -->
+        <div id="speed-alert-overlay" class="speed-alert-overlay hidden">
+            <div class="speed-alert-content">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="speed-alert-text">SLOW DOWN</span>
+            </div>
+        </div>
+
+        <!-- Geofence Zone Warning -->
+        <div id="geofence-warning" class="geofence-warning hidden">
+            <i class="fas fa-school"></i>
+            <span id="geofence-text">School Zone</span>
+        </div>
+
         <!-- Navigation HUD -->
         <!-- Turn-by-Turn Direction Banner (top of screen during nav) -->
         <div id="nav-direction-banner" class="nav-direction-banner hidden">
@@ -509,6 +591,26 @@
                         <i class="fas fa-map-marker-alt"></i>
                         <span class="ride-stat-value" id="ride-stat-max-speed-road">—</span>
                         <span class="ride-stat-label">Max Road Speed</span>
+                    </div>
+                    <div class="ride-stat ride-stat-wheel hidden" id="ride-stat-wheel-dist-wrap">
+                        <i class="fas fa-bluetooth-b"></i>
+                        <span class="ride-stat-value" id="ride-stat-wheel-dist">—</span>
+                        <span class="ride-stat-label">Wheel Distance</span>
+                    </div>
+                    <div class="ride-stat ride-stat-wheel hidden" id="ride-stat-batt-used-wrap">
+                        <i class="fas fa-battery-quarter"></i>
+                        <span class="ride-stat-value" id="ride-stat-batt-used">—</span>
+                        <span class="ride-stat-label">Battery Used</span>
+                    </div>
+                    <div class="ride-stat ride-stat-wheel hidden" id="ride-stat-avg-power-wrap">
+                        <i class="fas fa-fire"></i>
+                        <span class="ride-stat-value" id="ride-stat-avg-power">—</span>
+                        <span class="ride-stat-label">Avg Power</span>
+                    </div>
+                    <div class="ride-stat ride-stat-wheel hidden" id="ride-stat-peak-power-wrap">
+                        <i class="fas fa-bolt"></i>
+                        <span class="ride-stat-value" id="ride-stat-peak-power">—</span>
+                        <span class="ride-stat-label">Peak Power</span>
                     </div>
                 </div>
             </div>
