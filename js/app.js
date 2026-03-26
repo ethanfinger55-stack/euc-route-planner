@@ -564,6 +564,8 @@
         selectedRouteIdx = 0;
         const mapNavBtn = $('#map-start-nav-btn');
         if (mapNavBtn) mapNavBtn.classList.add('hidden');
+        const batteryCard = $('#battery-card');
+        if (batteryCard) batteryCard.classList.add('hidden');
     }
 
     // ===== Main Route Finding =====
@@ -663,6 +665,7 @@
             showRouteInfo(sel.routeData, sel.speedData, sel.routeData.segments[0].steps);
             drawElevationProfile(sel.routeCoords, sel.elevationData);
             updateRangeEstimate(sel.routeData, sel.elevationData);
+            updateBatteryCard(sel.routeData, sel.elevationData);
 
             // Fit map to all routes
             const allCoords = allRoutes.flatMap(r => r.routeCoords);
@@ -780,6 +783,7 @@
         showRouteInfo(sel.routeData, sel.speedData, sel.routeData.segments[0].steps);
         drawElevationProfile(sel.routeCoords, sel.elevationData);
         updateRangeEstimate(sel.routeData, sel.elevationData);
+        updateBatteryCard(sel.routeData, sel.elevationData);
 
         // Re-fetch weather for new route midpoint
         await fetchWeather(sel.routeCoords);
@@ -1471,6 +1475,65 @@
         rangeEl.classList.remove('hidden');
     }
 
+    // ===== Battery Card (on-map overlay) =====
+    function updateBatteryCard(routeData, elevations) {
+        var card = $('#battery-card');
+        if (!card) return;
+
+        var rangeInput = document.getElementById('wheel-range');
+        var battInput = document.getElementById('battery-pct');
+        if (!rangeInput || !battInput) return;
+
+        var wheelRange = parseFloat(rangeInput.value) || 30;
+        var batteryPct = Math.min(100, Math.max(1, parseFloat(battInput.value) || 100));
+        var availableRange = wheelRange * (batteryPct / 100);
+        var routeDistance = routeData.segments[0].distance; // miles
+
+        // Elevation penalty
+        var elevGain = 0;
+        if (elevations) {
+            for (var i = 1; i < elevations.length; i++) {
+                var diff = elevations[i] - elevations[i - 1];
+                if (diff > 0) elevGain += diff;
+            }
+        }
+        var elevPenalty = (elevGain / 100) * 0.02 * wheelRange;
+        var effectiveRange = availableRange - elevPenalty;
+
+        // One-way usage
+        var oneWayPct = Math.round((routeDistance / effectiveRange) * 100);
+        var oneWayRemain = effectiveRange - routeDistance;
+
+        // Round trip (double the distance + roughly double elevation penalty)
+        var roundTripDist = routeDistance * 2;
+        var roundTripEffective = effectiveRange; // same battery, double distance
+        var roundTripPct = Math.round((roundTripDist / roundTripEffective) * 100);
+        var roundTripRemain = roundTripEffective - roundTripDist;
+
+        var toDestEl = $('#battery-to-dest-val');
+        var roundTripEl = $('#battery-round-trip-val');
+        var statusEl = $('#battery-status');
+
+        if (toDestEl) toDestEl.textContent = Math.min(oneWayPct, 999) + '% used';
+        if (roundTripEl) roundTripEl.textContent = Math.min(roundTripPct, 999) + '% used';
+
+        // Status message
+        if (statusEl) {
+            if (roundTripRemain > 2) {
+                statusEl.textContent = '\u2705 Round trip OK \u2014 ' + Math.round(roundTripRemain) + ' mi spare';
+                statusEl.className = 'battery-card-status battery-status-good';
+            } else if (oneWayRemain > 0 && roundTripRemain <= 2) {
+                statusEl.textContent = '\u26A0\uFE0F Can reach dest, not enough for return';
+                statusEl.className = 'battery-card-status battery-status-tight';
+            } else {
+                statusEl.textContent = '\u274C Cannot reach destination';
+                statusEl.className = 'battery-card-status battery-status-bad';
+            }
+        }
+
+        card.classList.remove('hidden');
+    }
+
     // ===== Weather (Open-Meteo) =====
     async function fetchWeather(routeCoords) {
         try {
@@ -1777,6 +1840,10 @@
         // Hide floating map nav button
         const mapNavBtn = $('#map-start-nav-btn');
         if (mapNavBtn) mapNavBtn.classList.add('hidden');
+
+        // Hide battery card during navigation
+        const battCard = $('#battery-card');
+        if (battCard) battCard.classList.add('hidden');
 
         // Populate directions inside the HUD panel
         populateNavDirections();

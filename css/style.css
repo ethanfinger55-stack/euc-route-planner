@@ -696,16 +696,16 @@ input[type="checkbox"] {
 /* ===== Floating Map Nav Button ===== */
 .map-start-nav-btn {
     position: absolute;
-    bottom: 300px;
+    bottom: 150px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 1000;
+    z-index: 1100;
     background: linear-gradient(135deg, #2ecc71, #27ae60);
     border: none;
     color: white;
     font-weight: 700;
-    font-size: 15px;
-    padding: 14px 28px;
+    font-size: 16px;
+    padding: 14px 36px;
     border-radius: 30px;
     cursor: pointer;
     box-shadow: 0 4px 16px rgba(46, 204, 113, 0.4);
@@ -722,6 +722,77 @@ input[type="checkbox"] {
 
 .map-start-nav-btn:active {
     transform: translateX(-50%) scale(0.97);
+}
+
+/* ===== Battery Range Card (on map) ===== */
+.battery-card {
+    position: absolute;
+    top: 70px;
+    right: 12px;
+    z-index: 1100;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    box-shadow: var(--shadow);
+    min-width: 140px;
+    font-size: 12px;
+}
+
+.battery-card-header {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.battery-card-header i {
+    color: var(--accent-green);
+}
+
+.battery-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+}
+
+.battery-label {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.battery-value {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.battery-card-status {
+    margin-top: 6px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.battery-status-good {
+    background: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+}
+
+.battery-status-tight {
+    background: rgba(241, 196, 15, 0.15);
+    color: #f1c40f;
+}
+
+.battery-status-bad {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
 }
 
 /* ===== Loading Overlay ===== */
@@ -2079,6 +2150,22 @@ input[type="checkbox"] {
 
     .wind-speed {
         font-size: 13px;
+    }
+
+    /* ----- Battery card mobile ----- */
+    .battery-card {
+        top: calc(68px + env(safe-area-inset-top));
+        right: 12px;
+        min-width: 130px;
+        padding: 8px 12px;
+        font-size: 11px;
+    }
+
+    /* ----- Go button mobile ----- */
+    .map-start-nav-btn {
+        bottom: 150px;
+        padding: 12px 32px;
+        font-size: 15px;
     }
 }
 

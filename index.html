@@ -225,10 +225,26 @@
         <!-- Map Container -->
         <div id="map"></div>
 
-        <!-- Floating Start Navigation Button (on map) -->
+        <!-- Floating Go Button (on map) -->
         <button id="map-start-nav-btn" class="map-start-nav-btn hidden">
-            <i class="fas fa-location-arrow"></i> Start Navigation
+            <i class="fas fa-location-arrow"></i> Go
         </button>
+
+        <!-- Battery Range Card (on map, below menu button) -->
+        <div id="battery-card" class="battery-card hidden">
+            <div class="battery-card-header">
+                <i class="fas fa-battery-three-quarters"></i> Battery
+            </div>
+            <div class="battery-card-row" id="battery-to-dest">
+                <span class="battery-label">To dest</span>
+                <span class="battery-value" id="battery-to-dest-val">—</span>
+            </div>
+            <div class="battery-card-row" id="battery-round-trip">
+                <span class="battery-label">Round trip</span>
+                <span class="battery-value" id="battery-round-trip-val">—</span>
+            </div>
+            <div class="battery-card-status" id="battery-status">—</div>
+        </div>
 
         <!-- Speed Limit Legend -->
         <div id="speed-legend" class="speed-legend hidden">
