@@ -313,12 +313,18 @@
 
     function updateFullscreenIcon() {
         var btn = $('#fullscreen-btn');
-        if (!btn) return;
+        var navBtn = $('#nav-fullscreen-btn');
         var isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-        btn.innerHTML = isFS
-            ? '<i class="fas fa-compress"></i>'
-            : '<i class="fas fa-expand"></i>';
-        btn.title = isFS ? 'Exit fullscreen' : 'Toggle fullscreen';
+        var icon = isFS ? 'fa-compress' : 'fa-expand';
+        var title = isFS ? 'Exit fullscreen' : 'Toggle fullscreen';
+        if (btn) {
+            btn.innerHTML = '<i class="fas ' + icon + '"></i>';
+            btn.title = title;
+        }
+        if (navBtn) {
+            navBtn.innerHTML = '<i class="fas ' + icon + '"></i>';
+            navBtn.title = title;
+        }
     }
 
     // ===== Initialization =====
@@ -332,6 +338,8 @@
         // Fullscreen button
         var fsBtn = $('#fullscreen-btn');
         if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+        var navFsBtn = $('#nav-fullscreen-btn');
+        if (navFsBtn) navFsBtn.addEventListener('click', toggleFullscreen);
         document.addEventListener('fullscreenchange', updateFullscreenIcon);
         document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
