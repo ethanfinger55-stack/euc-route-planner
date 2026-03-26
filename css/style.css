@@ -1001,7 +1001,7 @@ input[type="checkbox"] {
 /* ===== Battery Range Card (on map) ===== */
 .battery-card {
     position: absolute;
-    top: 70px;
+    top: 90px;
     right: 12px;
     z-index: 1100;
     background: var(--bg-sidebar);
@@ -2443,7 +2443,7 @@ input[type="checkbox"] {
 
     /* ----- Battery card mobile ----- */
     .battery-card {
-        top: calc(68px + env(safe-area-inset-top));
+        top: calc(82px + env(safe-area-inset-top));
         right: 12px;
         min-width: 130px;
         padding: 8px 12px;

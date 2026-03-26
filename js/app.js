@@ -2017,8 +2017,11 @@
         var roundTripEl = $('#battery-round-trip-val');
         var statusEl = $('#battery-status');
 
-        if (toDestEl) toDestEl.textContent = Math.min(oneWayPct, 999) + '% used';
-        if (roundTripEl) roundTripEl.textContent = Math.min(roundTripPct, 999) + '% used';
+        var oneWayRemainingPct = Math.max(0, Math.round(batteryPct - (routeDistance / effectiveRange) * batteryPct));
+        var roundTripRemainingPct = Math.max(0, Math.round(batteryPct - (roundTripDist / effectiveRange) * batteryPct));
+
+        if (toDestEl) toDestEl.textContent = oneWayRemainingPct + '% left';
+        if (roundTripEl) roundTripEl.textContent = roundTripRemainingPct + '% left';
 
         // Status message
         if (statusEl) {
