@@ -392,6 +392,37 @@
         </div>
 
         <!-- Navigation HUD -->
+        <!-- Turn-by-Turn Direction Banner (top of screen during nav) -->
+        <div id="nav-direction-banner" class="nav-direction-banner hidden">
+            <div class="nav-banner-icon" id="nav-banner-icon"><i class="fas fa-arrow-up"></i></div>
+            <div class="nav-banner-info">
+                <div class="nav-banner-distance" id="nav-banner-distance">—</div>
+                <div class="nav-banner-instruction" id="nav-banner-instruction">Calculating route...</div>
+            </div>
+        </div>
+
+        <!-- Floating Add Stop Button (top right, below menu button during nav) -->
+        <button id="nav-add-stop-btn" class="nav-add-stop-fab hidden" title="Add a stop">
+            <i class="fas fa-plus"></i>
+        </button>
+
+        <!-- Nearby Stops Overlay (floating panel over map) -->
+        <div id="nearby-panel" class="nearby-panel-overlay hidden">
+            <div class="nearby-panel-header">
+                <h4><i class="fas fa-map-pin"></i> Add a Stop</h4>
+                <button id="nearby-panel-close" class="btn-close-nav" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="nearby-list" class="nearby-list">
+                <p class="nearby-loading"><i class="fas fa-spinner fa-spin"></i> Finding nearby places...</p>
+            </div>
+            <button id="nearby-custom-btn" class="btn btn-sm btn-full" style="margin-top: 8px;">
+                <i class="fas fa-edit"></i> Custom Address
+            </button>
+        </div>
+
+        <!-- Navigation HUD (bottom bar) -->
         <div id="nav-hud" class="nav-hud hidden">
             <!-- Drag handle to slide up -->
             <div class="nav-hud-handle" id="nav-hud-handle">
@@ -422,30 +453,11 @@
                     <i class="fas fa-road"></i>
                     <span id="nav-hud-remaining">—</span>
                 </div>
-                <button id="nav-add-stop-btn" class="nav-add-stop-btn" title="Add a stop">
-                    <i class="fas fa-plus-circle"></i>
-                </button>
                 <button id="nav-light-btn" class="nav-ctrl-btn hidden" title="Toggle Light">
                     <i class="fas fa-lightbulb"></i>
                 </button>
                 <button id="nav-beep-btn" class="nav-ctrl-btn hidden" title="Horn / Beep">
                     <i class="fas fa-bullhorn"></i>
-                </button>
-            </div>
-
-            <!-- Nearby places panel (shown when Add Stop is tapped) -->
-            <div id="nearby-panel" class="nearby-panel hidden">
-                <div class="nearby-panel-header">
-                    <h4><i class="fas fa-map-pin"></i> Add a Stop</h4>
-                    <button id="nearby-panel-close" class="btn-close-nav" title="Close">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div id="nearby-list" class="nearby-list">
-                    <p class="nearby-loading"><i class="fas fa-spinner fa-spin"></i> Finding nearby places...</p>
-                </div>
-                <button id="nearby-custom-btn" class="btn btn-sm btn-full" style="margin-top: 8px;">
-                    <i class="fas fa-edit"></i> Custom Address
                 </button>
             </div>
             <!-- Expandable directions panel -->

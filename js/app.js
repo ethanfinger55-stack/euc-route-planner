@@ -2562,6 +2562,14 @@
             setTimeout(() => hud.classList.remove('entering'), 350);
         }
 
+        // Show top direction banner
+        const banner = $('#nav-direction-banner');
+        if (banner) banner.classList.remove('hidden');
+
+        // Show add-stop FAB
+        const addStopFab = $('#nav-add-stop-btn');
+        if (addStopFab) addStopFab.classList.remove('hidden');
+
         // Show floating speedometer
         const floatSpeed = $('#floating-speedometer');
         if (floatSpeed) floatSpeed.classList.remove('hidden');
@@ -2622,6 +2630,15 @@
             hud.classList.add('hidden');
             hud.classList.remove('expanded');
         }
+
+        // Hide top direction banner
+        const banner = $('#nav-direction-banner');
+        if (banner) banner.classList.add('hidden');
+
+        // Hide add-stop FAB and nearby panel
+        const addStopFab = $('#nav-add-stop-btn');
+        if (addStopFab) addStopFab.classList.add('hidden');
+        hideNearbyPanel();
 
         // Hide floating speedometer
         const floatSpeed = $('#floating-speedometer');
@@ -2808,23 +2825,32 @@
         const remainEl = $('#nav-hud-remaining');
         const upcomingEl = $('#nav-hud-upcoming');
 
+        // Banner elements
+        const bannerIconEl = $('#nav-banner-icon');
+        const bannerDistEl = $('#nav-banner-distance');
+        const bannerInstrEl = $('#nav-banner-instruction');
+
         // Turn icon
         const iconClass = NAV_TURN_ICONS[step.type] || 'fa-arrow-up';
-        if (iconEl) iconEl.innerHTML = `<i class="fas ${iconClass}"></i>`;
+        const iconHtml = `<i class="fas ${iconClass}"></i>`;
+        if (iconEl) iconEl.innerHTML = iconHtml;
+        if (bannerIconEl) bannerIconEl.innerHTML = iconHtml;
 
         // Distance to next turn
-        if (distEl) {
-            const distMi = distToStepKm * 0.621371;
-            if (distMi < 0.1) {
-                const ft = Math.round(distMi * 5280);
-                distEl.textContent = `${ft} ft`;
-            } else {
-                distEl.textContent = `${distMi.toFixed(1)} mi`;
-            }
+        const distMi = distToStepKm * 0.621371;
+        let distText;
+        if (distMi < 0.1) {
+            const ft = Math.round(distMi * 5280);
+            distText = `${ft} ft`;
+        } else {
+            distText = `${distMi.toFixed(1)} mi`;
         }
+        if (distEl) distEl.textContent = distText;
+        if (bannerDistEl) bannerDistEl.textContent = distText;
 
         // Instruction text
         if (instrEl) instrEl.textContent = step.instruction;
+        if (bannerInstrEl) bannerInstrEl.textContent = step.instruction;
 
         // Speed limit for current segment
         if (speedEl && navSpeedData) {
