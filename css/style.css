@@ -520,7 +520,7 @@ input[type="checkbox"] {
 /* ===== Speed Legend ===== */
 .speed-legend {
     position: absolute;
-    bottom: 80px;
+    bottom: 150px;
     right: 12px;
     background: var(--bg-sidebar);
     border: 1px solid var(--border-color);
@@ -691,6 +691,37 @@ input[type="checkbox"] {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+/* ===== Floating Map Nav Button ===== */
+.map-start-nav-btn {
+    position: absolute;
+    bottom: 300px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    border: none;
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 14px 28px;
+    border-radius: 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(46, 204, 113, 0.4);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.map-start-nav-btn:hover {
+    box-shadow: 0 6px 24px rgba(46, 204, 113, 0.5);
+    transform: translateX(-50%) scale(1.03);
+}
+
+.map-start-nav-btn:active {
+    transform: translateX(-50%) scale(0.97);
 }
 
 /* ===== Loading Overlay ===== */
@@ -1520,6 +1551,7 @@ input[type="checkbox"] {
     gap: 8px;
     box-shadow: var(--shadow);
     color: var(--text-primary);
+    margin-bottom: 150px !important;
 }
 
 .wind-arrow {
@@ -1798,7 +1830,7 @@ input[type="checkbox"] {
 
     /* ----- Speed legend compact on mobile — raised above browser chrome ----- */
     .speed-legend {
-        bottom: calc(70px + env(safe-area-inset-bottom));
+        bottom: 150px;
         right: 12px;
         font-size: 11px;
         padding: 8px 12px;

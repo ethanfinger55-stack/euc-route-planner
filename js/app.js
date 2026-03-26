@@ -562,6 +562,8 @@
         if (windOverlay) { map.removeControl(windOverlay); windOverlay = null; }
         allRoutes = [];
         selectedRouteIdx = 0;
+        const mapNavBtn = $('#map-start-nav-btn');
+        if (mapNavBtn) mapNavBtn.classList.add('hidden');
     }
 
     // ===== Main Route Finding =====
@@ -675,6 +677,9 @@
 
             const navBtn = $('#start-nav-btn');
             if (navBtn) navBtn.classList.remove('hidden');
+
+            const mapNavBtn = $('#map-start-nav-btn');
+            if (mapNavBtn) mapNavBtn.classList.remove('hidden');
 
             speedLegend.classList.remove('hidden');
             hideLoading();
@@ -1565,7 +1570,7 @@
 
         var arrowRotation = (direction + 180) % 360;
 
-        windOverlay = L.control({ position: 'bottomright' });
+        windOverlay = L.control({ position: 'bottomleft' });
         windOverlay.onAdd = function () {
             var div = L.DomUtil.create('div', 'wind-overlay');
             div.innerHTML =
@@ -1768,6 +1773,10 @@
             hud.classList.add('entering');
             setTimeout(() => hud.classList.remove('entering'), 350);
         }
+
+        // Hide floating map nav button
+        const mapNavBtn = $('#map-start-nav-btn');
+        if (mapNavBtn) mapNavBtn.classList.add('hidden');
 
         // Populate directions inside the HUD panel
         populateNavDirections();
@@ -2148,6 +2157,10 @@
         const startNavBtn = $('#start-nav-btn');
         if (startNavBtn) {
             startNavBtn.addEventListener('click', startNavigation);
+        }
+        const mapStartNavBtn = $('#map-start-nav-btn');
+        if (mapStartNavBtn) {
+            mapStartNavBtn.addEventListener('click', startNavigation);
         }
         const closeNavBtn = $('#close-nav-btn');
         if (closeNavBtn) {
