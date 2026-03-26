@@ -3123,13 +3123,22 @@
 
         try {
             updateBleStatus('scanning');
-            // Accept both V2 (NUS) and V1 UUIDs so the picker shows any InMotion wheel
+            // Use multiple filter strategies so the picker shows any InMotion wheel.
+            // Many wheels don't advertise service UUIDs, so we also match by name prefix.
             bleDevice = await navigator.bluetooth.requestDevice({
                 filters: [
                     { services: [BLE_V2_SERVICE] },
-                    { services: [BLE_V1_SERVICE] }
+                    { services: [BLE_V1_SERVICE] },
+                    { namePrefix: 'InMotion' },
+                    { namePrefix: 'INMOTION' },
+                    { namePrefix: 'V11' },
+                    { namePrefix: 'V12' },
+                    { namePrefix: 'V13' },
+                    { namePrefix: 'V14' },
+                    { namePrefix: 'V9' },
+                    { namePrefix: 'P6' }
                 ],
-                optionalServices: [BLE_V1_WRITE_SERVICE]
+                optionalServices: [BLE_V2_SERVICE, BLE_V1_SERVICE, BLE_V1_WRITE_SERVICE]
             });
 
             bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
