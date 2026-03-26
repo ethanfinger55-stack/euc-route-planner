@@ -527,6 +527,47 @@ input[type="checkbox"] {
     white-space: nowrap;
 }
 
+.direction-speed-badge.unknown-speed {
+    cursor: pointer;
+    position: relative;
+}
+
+.direction-speed-badge.unknown-speed:hover {
+    filter: brightness(1.3);
+}
+
+.speed-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    z-index: 100;
+    min-width: 90px;
+    overflow: hidden;
+}
+
+.speed-dropdown-item {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: left;
+    transition: background 0.12s;
+}
+
+.speed-dropdown-item:hover {
+    background: rgba(74, 144, 217, 0.2);
+}
+
+.direction-step {
+    position: relative;
+}
+
 /* ===== Toggle Sidebar ===== */
 .toggle-sidebar {
     position: absolute;

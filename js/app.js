@@ -1611,17 +1611,101 @@
             const div = document.createElement('div');
             div.className = 'direction-step';
 
-            const speedBadge = speed != null
-                ? `<span class="direction-speed-badge" style="background: ${getSpeedBadgeColor(speed)};">${speed} mph</span>`
-                : `<span class="direction-speed-badge" style="background: #95a5a6;">? mph</span>`;
+            const numSpan = document.createElement('span');
+            numSpan.className = 'direction-step-num';
+            numSpan.textContent = idx + 1;
 
-            div.innerHTML = `
-                <span class="direction-step-num">${idx + 1}</span>
-                <span class="direction-step-text">${step.instruction} <small>(${(step.distance).toFixed(2)} mi)</small></span>
-                ${speedBadge}
-            `;
+            const textSpan = document.createElement('span');
+            textSpan.className = 'direction-step-text';
+            textSpan.innerHTML = step.instruction + ' <small>(' + step.distance.toFixed(2) + ' mi)</small>';
+
+            const badge = document.createElement('span');
+            badge.className = 'direction-speed-badge';
+
+            if (speed != null) {
+                badge.style.background = getSpeedBadgeColor(speed);
+                badge.textContent = speed + ' mph';
+            } else {
+                badge.style.background = '#95a5a6';
+                badge.textContent = '? mph';
+                badge.classList.add('unknown-speed');
+                badge.title = 'Set speed limit';
+                badge.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    openSpeedDropdown(badge, waypointIdx, speedData, routeData);
+                });
+            }
+
+            div.appendChild(numSpan);
+            div.appendChild(textSpan);
+            div.appendChild(badge);
             container.appendChild(div);
         });
+    }
+
+    const COMMON_SPEED_LIMITS = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65];
+
+    function openSpeedDropdown(badgeEl, waypointIdx, speedData, routeData) {
+        // Remove any existing dropdown
+        const existing = document.querySelector('.speed-dropdown');
+        if (existing) existing.remove();
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'speed-dropdown';
+
+        COMMON_SPEED_LIMITS.forEach(mph => {
+            const item = document.createElement('div');
+            item.className = 'speed-dropdown-item';
+            item.textContent = mph + ' mph';
+            item.addEventListener('click', function (e) {
+                e.stopPropagation();
+                applySpeedFromDirections(mph, waypointIdx, speedData, routeData);
+                dropdown.remove();
+            });
+            dropdown.appendChild(item);
+        });
+
+        badgeEl.style.position = 'relative';
+        badgeEl.appendChild(dropdown);
+
+        // Close when clicking outside
+        const closeHandler = function (e) {
+            if (!dropdown.contains(e.target) && e.target !== badgeEl) {
+                dropdown.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeHandler), 0);
+    }
+
+    function applySpeedFromDirections(mph, waypointIdx, speedData, routeData) {
+        // Find the route coords to apply to
+        const sel = allRoutes[selectedRouteIdx];
+        const routeCoords = sel ? sel.routeCoords : navRouteCoords;
+        if (!routeCoords || waypointIdx >= routeCoords.length) return;
+
+        // Apply to nearby route points (within ~150m of the selected point)
+        const centerCoord = routeCoords[waypointIdx];
+        routeCoords.forEach((coord, idx) => {
+            const dist = haversineDistance(coord, centerCoord);
+            if (dist < 0.15 && speedData[idx] && speedData[idx].mph == null) {
+                const key = coord[0].toFixed(4) + ',' + coord[1].toFixed(4);
+                manualSpeedOverrides[key] = mph;
+                speedData[idx] = { mph: mph, name: 'Manual', type: 'road' };
+            }
+        });
+
+        saveManualSpeedOverrides();
+
+        // Redraw route and refresh directions
+        clearRoute();
+        drawColoredRoute(routeCoords, speedData);
+        placeSpeedSigns(routeCoords, speedData);
+
+        // Refresh route info
+        const rd = sel ? sel.routeData : { segments: [{ distance: navTotalDistanceMi, duration: 0 }] };
+        const allSteps = rd.segments.flatMap(seg => seg.steps || []);
+        showRouteInfo(rd, speedData, allSteps);
     }
 
     function populateNavDirections() {
