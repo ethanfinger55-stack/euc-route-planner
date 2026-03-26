@@ -758,7 +758,7 @@ input[type="checkbox"] {
 .nav-add-stop-fab {
     position: fixed;
     right: 12px;
-    top: calc(80px + env(safe-area-inset-top));
+    top: calc(130px + env(safe-area-inset-top));
     z-index: 1700;
     background: var(--bg-sidebar);
     border: 1px solid var(--border-color);
