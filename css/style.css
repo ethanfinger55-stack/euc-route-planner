@@ -1410,7 +1410,8 @@ input[type="checkbox"] {
 }
 
 .nav-hud-eta,
-.nav-hud-remaining {
+.nav-hud-remaining,
+.nav-hud-odometer {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1419,7 +1420,8 @@ input[type="checkbox"] {
 }
 
 .nav-hud-eta i,
-.nav-hud-remaining i {
+.nav-hud-remaining i,
+.nav-hud-odometer i {
     color: var(--accent-blue);
     font-size: 12px;
 }

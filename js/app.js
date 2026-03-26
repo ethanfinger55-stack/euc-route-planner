@@ -2988,6 +2988,19 @@
             remainingMi += navSteps[i].distance;
         }
         if (remainEl) remainEl.textContent = `${remainingMi.toFixed(1)} mi left`;
+
+        // Lifetime odometer (only if BLE connected)
+        const odoEl = $('#nav-hud-odometer');
+        const odoValEl = $('#nav-hud-odo-val');
+        if (odoEl && odoValEl) {
+            if (bleConnected && bleWheelData.distance > 0) {
+                const totalMi = (bleWheelData.distance / 1609.34).toFixed(1);
+                odoValEl.textContent = totalMi + ' mi total';
+                odoEl.classList.remove('hidden');
+            } else {
+                odoEl.classList.add('hidden');
+            }
+        }
         if (etaEl) {
             const etaMin = Math.round((remainingMi / EUC_AVG_SPEED_MPH) * 60);
             etaEl.textContent = etaMin > 0 ? `~${etaMin} min` : '< 1 min';
