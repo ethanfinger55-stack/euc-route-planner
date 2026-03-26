@@ -2632,6 +2632,14 @@
         updateUsageDisplay();
         renderRouteHistory();
 
+        // Collapsible sidebar sections
+        document.querySelectorAll('[data-collapse]').forEach(header => {
+            header.addEventListener('click', () => {
+                const section = header.closest('.collapsible');
+                if (section) section.classList.toggle('collapsed-section');
+            });
+        });
+
         // Clear history button
         const clearHistBtn = $('#clear-history-btn');
         if (clearHistBtn) {

@@ -24,10 +24,12 @@
             </div>
 
             <!-- API Key Section -->
-            <div id="api-key-section" class="sidebar-section">
-                <label for="api-key-input">
-                    <i class="fas fa-key"></i> OpenRouteService API Key
-                </label>
+            <div id="api-key-section" class="sidebar-section collapsible">
+                <div class="section-header" data-collapse>
+                    <label><i class="fas fa-key"></i> OpenRouteService API Key</label>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
                 <div class="input-group">
                     <input type="password" id="api-key-input" placeholder="Paste your API key here" />
                     <button id="save-api-key" class="btn btn-sm" title="Save key">
@@ -45,11 +47,16 @@
                     <div class="usage-row"><span>Search</span><span id="usage-search">0 / 1000</span></div>
                     <small class="usage-reset-note">Resets daily. Stored locally.</small>
                 </div>
+                </div>
             </div>
 
             <!-- Home Address -->
-            <div class="sidebar-section">
-                <h3><i class="fas fa-home"></i> Home Address</h3>
+            <div class="sidebar-section collapsible">
+                <div class="section-header" data-collapse>
+                    <h3><i class="fas fa-home"></i> Home Address</h3>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
                 <div id="home-address-display" class="home-address-display">
                     <span id="home-address-text" class="home-address-text">No home address set</span>
                 </div>
@@ -61,10 +68,16 @@
                         <i class="fas fa-home"></i> Go Home
                     </button>
                 </div>
+                </div>
             </div>
 
             <!-- Route Input Section -->
-            <div class="sidebar-section">
+            <div class="sidebar-section collapsible">
+                <div class="section-header" data-collapse>
+                    <label><i class="fas fa-route"></i> Route Input</label>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
                 <label for="start-input">
                     <i class="fas fa-map-marker-alt" style="color: var(--accent-green);"></i> Start Location
                 </label>
@@ -99,22 +112,32 @@
 
                 <!-- Geocode suggestions dropdown -->
                 <div id="suggestions-dropdown" class="suggestions-dropdown hidden"></div>
+                </div>
             </div>
 
             <!-- Saved Routes -->
-            <div class="sidebar-section">
-                <h3><i class="fas fa-history"></i> Recent Routes</h3>
+            <div class="sidebar-section collapsible collapsed-section">
+                <div class="section-header" data-collapse>
+                    <h3><i class="fas fa-history"></i> Recent Routes</h3>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
                 <div id="saved-routes-list" class="saved-routes-list">
                     <p class="no-saved-routes">No saved routes yet. Routes are saved automatically after searching.</p>
                 </div>
                 <button id="clear-history-btn" class="btn btn-sm btn-full hidden" style="margin-top: 8px;">
                     <i class="fas fa-trash-alt"></i> Clear History
                 </button>
+                </div>
             </div>
 
             <!-- Route Preferences -->
-            <div class="sidebar-section">
-                <h3><i class="fas fa-sliders-h"></i> Route Preferences</h3>
+            <div class="sidebar-section collapsible collapsed-section">
+                <div class="section-header" data-collapse>
+                    <h3><i class="fas fa-sliders-h"></i> Route Preferences</h3>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
                 <div class="preference-item">
                     <label for="max-speed-pref">Max preferred speed limit</label>
                     <select id="max-speed-pref">
@@ -131,11 +154,16 @@
                         Prefer shortest / residential roads
                     </label>
                 </div>
+                </div>
             </div>
 
             <!-- Range Estimator -->
-            <div class="sidebar-section">
-                <h3><i class="fas fa-battery-three-quarters"></i> Range Estimator</h3>
+            <div class="sidebar-section collapsible collapsed-section">
+                <div class="section-header" data-collapse>
+                    <h3><i class="fas fa-battery-three-quarters"></i> Range Estimator</h3>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
                 <div class="preference-item">
                     <label for="wheel-range">Wheel rated range (miles)</label>
                     <input type="number" id="wheel-range" min="1" max="200" value="30" class="range-input" />
@@ -143,6 +171,7 @@
                 <div class="preference-item">
                     <label for="battery-pct">Current battery %</label>
                     <input type="number" id="battery-pct" min="1" max="100" value="100" class="range-input" />
+                </div>
                 </div>
             </div>
 
@@ -154,11 +183,15 @@
             </div>
 
             <!-- Route Info Panel -->
-            <div id="route-info" class="sidebar-section route-info hidden">
+            <div id="route-info" class="sidebar-section collapsible route-info hidden">
                 <!-- Route Option Tabs -->
                 <div id="route-tabs" class="route-tabs hidden"></div>
 
-                <h3><i class="fas fa-info-circle"></i> Route Summary</h3>
+                <div class="section-header" data-collapse>
+                    <h3><i class="fas fa-info-circle"></i> Route Summary</h3>
+                    <i class="fas fa-chevron-down section-chevron"></i>
+                </div>
+                <div class="section-body">
                 <div class="route-stats">
                     <div class="stat">
                         <span class="stat-label">Distance</span>
@@ -222,6 +255,7 @@
                 <button id="start-nav-btn" class="btn btn-nav btn-full" style="margin-top: 16px;">
                     <i class="fas fa-location-arrow"></i> Start Navigation
                 </button>
+                </div>
             </div>
         </aside>
 
