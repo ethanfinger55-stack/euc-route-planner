@@ -9,6 +9,7 @@
     // ===== Configuration =====
     const ORS_BASE = 'https://api.openrouteservice.org';
     const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
+    const MAPBOX_DIRECTIONS_BASE = 'https://api.mapbox.com/directions/v5/mapbox/driving';
     const DEFAULT_ZOOM = 14;
     const EUC_AVG_SPEED_MPH = 18; // average EUC cruising speed for time estimates
 
@@ -112,6 +113,7 @@
     // ===== State =====
     let map;
     let apiKey = '';
+    let mapboxApiKey = '';
     let startCoords = null; // [lat, lng]
     let endCoords = null;
     let routeLayers = [];
@@ -224,6 +226,8 @@
     const $ = (sel) => document.querySelector(sel);
     const apiKeyInput = $('#api-key-input');
     const saveApiKeyBtn = $('#save-api-key');
+    const mapboxKeyInput = $('#mapbox-key-input');
+    const saveMapboxKeyBtn = $('#save-mapbox-key');
     const startInput = $('#start-input');
     const endInput = $('#end-input');
     const useLocationBtn = $('#use-location-btn');
@@ -380,12 +384,32 @@
             apiKeyInput.value = saved;
             $('#api-key-section').style.borderColor = 'var(--accent-green)';
         }
+        loadMapboxKey();
+    }
+
+    function loadMapboxKey() {
+        const saved = localStorage.getItem('mapbox_api_key');
+        if (saved && mapboxKeyInput) {
+            mapboxApiKey = saved;
+            mapboxKeyInput.value = saved;
+        }
+    }
+
+    function saveMapboxKey() {
+        if (!mapboxKeyInput) return;
+        const key = mapboxKeyInput.value.trim();
+        if (!key) return;
+        mapboxApiKey = key;
+        localStorage.setItem('mapbox_api_key', key);
     }
 
     // ===== Event Binding =====
     function bindEvents() {
         saveApiKeyBtn.addEventListener('click', saveApiKey);
         apiKeyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveApiKey(); });
+
+        if (saveMapboxKeyBtn) saveMapboxKeyBtn.addEventListener('click', saveMapboxKey);
+        if (mapboxKeyInput) mapboxKeyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveMapboxKey(); });
 
         useLocationBtn.addEventListener('click', useCurrentLocation);
 
@@ -1495,8 +1519,109 @@
         return coords;
     }
 
-    // ===== Fetch Speed Limits from Overpass API =====
+    // ===== Fetch Speed Limits (Mapbox with Overpass fallback) =====
     async function fetchSpeedLimits(routeCoords) {
+        // Try Mapbox Directions API first (much better speed limit coverage)
+        if (mapboxApiKey) {
+            try {
+                return await fetchSpeedLimitsMapbox(routeCoords);
+            } catch (err) {
+                console.warn('Mapbox speed limits failed, falling back to Overpass:', err);
+            }
+        }
+        // Fall back to Overpass API
+        return await fetchSpeedLimitsOverpass(routeCoords);
+    }
+
+    // ===== Fetch Speed Limits from Mapbox Directions API =====
+    async function fetchSpeedLimitsMapbox(routeCoords) {
+        const maxWaypoints = 25;
+
+        // Sample coordinates evenly, always including start and end
+        let sampled;
+        if (routeCoords.length <= maxWaypoints) {
+            sampled = [...routeCoords];
+        } else {
+            sampled = [routeCoords[0]];
+            const step = (routeCoords.length - 1) / (maxWaypoints - 1);
+            for (let i = 1; i < maxWaypoints - 1; i++) {
+                sampled.push(routeCoords[Math.round(i * step)]);
+            }
+            sampled.push(routeCoords[routeCoords.length - 1]);
+        }
+
+        // Build coordinate string: lng,lat format for Mapbox
+        const coordStr = sampled.map(c => c[1].toFixed(6) + ',' + c[0].toFixed(6)).join(';');
+
+        const url = MAPBOX_DIRECTIONS_BASE + '/' + coordStr
+            + '?annotations=maxspeed&overview=full&geometries=geojson&access_token='
+            + encodeURIComponent(mapboxApiKey);
+
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            const errText = await resp.text();
+            console.warn('Mapbox API error:', resp.status, errText);
+            throw new Error('Mapbox API error: ' + resp.status);
+        }
+        const data = await resp.json();
+
+        if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+            throw new Error('No Mapbox route found');
+        }
+
+        const route = data.routes[0];
+
+        // Convert Mapbox geometry coordinates [lng, lat] → [lat, lng]
+        const mbPoints = route.geometry.coordinates.map(c => [c[1], c[0]]);
+
+        // Collect all maxspeed annotations from all legs
+        const allMaxspeeds = [];
+        route.legs.forEach(leg => {
+            if (leg.annotation && leg.annotation.maxspeed) {
+                allMaxspeeds.push(...leg.annotation.maxspeed);
+            }
+        });
+
+        // Convert each maxspeed entry to mph
+        const segmentSpeeds = allMaxspeeds.map(ms => {
+            if (!ms || ms.unknown || ms.none) return null;
+            if (ms.speed == null) return null;
+            if (ms.unit === 'km/h') return Math.round(ms.speed * 0.621371);
+            return Math.round(ms.speed); // already mph
+        });
+
+        // Match each ORS route coord to nearest Mapbox geometry point
+        return routeCoords.map(point => {
+            // Check manual overrides first
+            const key = point[0].toFixed(4) + ',' + point[1].toFixed(4);
+            if (manualSpeedOverrides[key] != null) {
+                return { mph: manualSpeedOverrides[key], name: 'Manual', type: 'road' };
+            }
+
+            let bestIdx = 0;
+            let bestDist = Infinity;
+
+            for (let i = 0; i < mbPoints.length; i++) {
+                const dist = haversineDistance(point, mbPoints[i]);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = i;
+                }
+            }
+
+            // Use the speed of the nearest segment (capped to valid index)
+            const segIdx = Math.min(bestIdx, segmentSpeeds.length - 1);
+
+            if (bestDist < 0.3 && segIdx >= 0 && segmentSpeeds[segIdx] != null) {
+                return { mph: segmentSpeeds[segIdx], name: 'Road', type: 'road' };
+            }
+
+            return { mph: null, name: 'Unknown', type: 'road' };
+        });
+    }
+
+    // ===== Fetch Speed Limits from Overpass API (fallback) =====
+    async function fetchSpeedLimitsOverpass(routeCoords) {
         // Sample points along the route (every ~20 points to avoid huge queries)
         const sampleRate = Math.max(1, Math.floor(routeCoords.length / 80));
         const sampled = routeCoords.filter((_, i) => i % sampleRate === 0 || i === routeCoords.length - 1);

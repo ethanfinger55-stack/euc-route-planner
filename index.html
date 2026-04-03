@@ -376,6 +376,17 @@
                     <small>
                         Free key at <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener noreferrer">openrouteservice.org</a>
                     </small>
+
+                    <label style="margin-top: 14px;"><i class="fas fa-map"></i> Mapbox Token <small>(speed limits)</small></label>
+                    <div class="input-group">
+                        <input type="password" id="mapbox-key-input" placeholder="Paste your Mapbox access token" />
+                        <button id="save-mapbox-key" class="btn btn-sm" title="Save token">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </div>
+                    <small>
+                        Free token at <a href="https://account.mapbox.com/auth/signup/" target="_blank" rel="noopener noreferrer">mapbox.com</a> &mdash; much better speed limit data
+                    </small>
                     <div id="api-usage" class="api-usage hidden">
                         <h4><i class="fas fa-chart-bar"></i> API Usage Today</h4>
                         <div class="usage-row"><span>Directions</span><span id="usage-directions">0 / 2000</span></div>
