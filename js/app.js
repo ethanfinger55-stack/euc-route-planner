@@ -3408,17 +3408,19 @@
         // Close modal
         if (modal) modal.classList.add('hidden');
 
-        // Redraw route
-        clearRoute();
+        // Clear visual layers only (not allRoutes data) and redraw
+        routeLayers.forEach(layer => map.removeLayer(layer));
+        routeLayers = [];
+        speedMarkers.forEach(m => map.removeLayer(m));
+        speedMarkers = [];
         drawAllRoutes();
 
         // Update info panels
         const allSteps = sel.routeData.segments.flatMap(seg => seg.steps || []);
         showRouteInfo(sel.routeData, sel.speedData, allSteps);
 
-        // Re-show Go button and battery card
-        const mapNavBtn = $('#map-start-nav-btn');
-        if (mapNavBtn) mapNavBtn.classList.remove('hidden');
+        // Update nav data with the corrected speeds
+        setNavDataFromRoute(sel);
         updateBatteryCard(sel.routeData, sel.elevationData);
 
         // Start navigation
